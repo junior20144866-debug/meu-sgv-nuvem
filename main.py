@@ -14,7 +14,7 @@ def login():
         st.session_state.autenticado = False
 
     if not st.session_state.autenticado:
-        st.title(" JMQJR - SGV")
+        st.title("JMQJR - SGV")
         senha = st.text_input("Senha Master", type="password")
         if st.button("Entrar"):
             if senha == "Naksu@6026":
@@ -40,7 +40,6 @@ if login():
                 prc = c2.number_input("Preço de Venda", min_value=0.0)
                 est = c3.number_input("Estoque Inicial", min_value=0.0)
                 if st.form_submit_button("Salvar Produto"):
-                    # Enviando conforme os nomes da sua tabela produtos
                     dados = {"Descrição": desc, "Unidade": uni, "Preço de venda": prc, "Estoque atual": est}
                     try:
                         supabase.table("produtos").insert(dados).execute()
@@ -72,16 +71,15 @@ if login():
                 cid_in = st.text_input("Cidade")
                 
                 if st.form_submit_button("Cadastrar Cliente"):
-                    # AJUSTADO: Usando 'bairro' e 'apelido_fantasia' em minúsculo
-                    # Se 'Nome' ou 'Telefone' também derem erro, trocaremos para minúsculo depois
+                    # AJUSTADO: cep, bairro, endereco e apelido_fantasia em minúsculo
                     dados_cli = {
                         "Nome": nome_in, 
                         "apelido_fantasia": apel_in, 
                         "CPF/CNPJ": doc_in,
                         "Telefone": tel_in, 
-                        "CEP": cep_in, 
-                        "endereco": end_in,
-                        "bairro": bair_in, # Alterado para minúsculo
+                        "cep": cep_in,        # Alterado para minúsculo
+                        "endereco": end_in, 
+                        "bairro": bair_in, 
                         "Cidade": cid_in
                     }
                     try:
@@ -102,8 +100,8 @@ if login():
     elif menu == "🛒 PDV (Vendas)":
         st.header("🛒 Lançar Pedido")
         try:
-            # Busca dinâmica respeitando os nomes das colunas
-            c_list = supabase.table("Clientes").select("Nome, endereco, bairro").execute()
+            # Busca dinâmica respeitando os nomes das colunas minúsculas
+            c_list = supabase.table("Clientes").select("Nome, endereco, bairro, cep").execute()
             p_list = supabase.table("produtos").select("Descrição, \"Preço de venda\"").execute()
             
             nomes_c = [c['Nome'] for c in c_list.data] if c_list.data else []
@@ -114,7 +112,7 @@ if login():
             
             if cli_sel:
                 det = next(c for c in c_list.data if c['Nome'] == cli_sel)
-                st.info(f"📍 Entrega: {det['endereco']} - {det['bairro']}")
+                st.info(f"📍 Entrega: {det['endereco']} - {det['bairro']} | CEP: {det['cep']}")
 
             prod_sel = col_p.selectbox("Selecione o Produto", [""] + nomes_p)
             
