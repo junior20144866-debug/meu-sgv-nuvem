@@ -18,7 +18,7 @@ def login():
         st.title("🍎 Derlyana Alimentos - SGV")
         senha = st.text_input("Senha Master", type="password")
         if st.button("Entrar"):
-            if senha == "1234":
+            if senha == "Naksu@6026":
                 st.session_state.autenticado = True
                 st.rerun()
             else:
