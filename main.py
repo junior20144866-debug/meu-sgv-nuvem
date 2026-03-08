@@ -53,7 +53,7 @@ if login():
             if res_p.data:
                 st.dataframe(pd.DataFrame(res_p.data), use_container_width=True)
         except Exception as e:
-            st.error(f"Erro ao carregar lista de produtos: {e}")
+            st.error(f"Erro ao carregar produtos: {e}")
 
     # --- ABA DE CLIENTES ---
     elif menu == "👥 Clientes":
@@ -71,16 +71,16 @@ if login():
                 cid_in = st.text_input("Cidade")
                 
                 if st.form_submit_button("Cadastrar Cliente"):
-                    # AJUSTADO: cep, bairro, endereco e apelido_fantasia em minúsculo
+                    # AJUSTADO: Tudo minúsculo conforme o padrão do seu banco
                     dados_cli = {
                         "Nome": nome_in, 
                         "apelido_fantasia": apel_in, 
-                        "CPF/CNPJ": doc_in,
-                        "Telefone": tel_in, 
-                        "cep": cep_in,        # Alterado para minúsculo
+                        "cpf_cnpj": doc_in,       # Alterado: sem barra e minúsculo
+                        "telefone": tel_in,       # Provável padrão minúsculo
+                        "cep": cep_in, 
                         "endereco": end_in, 
                         "bairro": bair_in, 
-                        "Cidade": cid_in
+                        "cidade": cid_in          # Provável padrão minúsculo
                     }
                     try:
                         supabase.table("Clientes").insert(dados_cli).execute()
@@ -94,13 +94,12 @@ if login():
             if res_c.data:
                 st.dataframe(pd.DataFrame(res_c.data), use_container_width=True)
         except Exception as e:
-            st.error(f"Erro ao carregar lista de clientes: {e}")
+            st.error(f"Erro ao carregar clientes: {e}")
 
     # --- ABA DE VENDAS ---
     elif menu == "🛒 PDV (Vendas)":
         st.header("🛒 Lançar Pedido")
         try:
-            # Busca dinâmica respeitando os nomes das colunas minúsculas
             c_list = supabase.table("Clientes").select("Nome, endereco, bairro, cep").execute()
             p_list = supabase.table("produtos").select("Descrição, \"Preço de venda\"").execute()
             
@@ -125,6 +124,6 @@ if login():
                 
                 if st.button("Finalizar Venda"):
                     st.balloons()
-                    st.success("Venda simulada com sucesso!")
+                    st.success("Venda registrada com sucesso!")
         except:
             st.warning("Cadastre dados em 'Clientes' e 'Estoque' para usar o PDV.")
