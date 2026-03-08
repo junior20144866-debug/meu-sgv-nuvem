@@ -4,7 +4,7 @@ from supabase import create_client
 # 1. Configurações de Segurança e Conexão
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 # Nota: Lembre-se de colocar sua chave real entre as aspas abaixo
-CHAVE_SUPABASE = "SUA_CHAVE_ANON_AQUI" 
+CHAVE_SUPABASE = "sb_publishable_GM3H4uSu3iNDP-dOd1wl8Q_FXp5rTHWI" 
 
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
