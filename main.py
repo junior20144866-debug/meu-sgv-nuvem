@@ -12,11 +12,10 @@ def login():
     st.title("🍎 Derlyana Alimentos - SGV")
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
-
     if not st.session_state.autenticado:
         senha = st.text_input("Senha Master", type="password")
         if st.button("Entrar"):
-            if senha == "Naksu@6026": # <--- TROQUE SUA SENHA AQUI
+            if senha == "Naksu@6026": 
                 st.session_state.autenticado = True
                 st.rerun()
             else:
@@ -24,57 +23,13 @@ def login():
         return False
     return True
 
-# 3. Execução do Sistema
 if login():
     st.sidebar.title("Navegação")
     menu = st.sidebar.radio("Ir para:", ["🛒 PDV (Vendas)", "👥 Gerenciar Clientes", "📦 Gerenciar Estoque"])
 
-    # --- ABA DE CLIENTES ---
-    if menu == "👥 Gerenciar Clientes":
-        st.header("👥 Gestão de Clientes")
-        
-        # Formulário para Adicionar
-        with st.expander("➕ Adicionar Novo Cliente", expanded=False):
-            with st.form("form_cliente"):
-                nome = st.text_input("Nome Completo / Razão Social")
-                apelido = st.text_input("Apelido / Nome Fantasia")
-                col1, col2, col3 = st.columns([2, 2, 1])
-                cpf_cnpj = col1.text_input("CPF / CNPJ")
-                tel = col2.text_input("Telefone")
-                cep = col3.text_input("CEP")
-                
-                end = st.text_input("Endereço (Rua, Nº)")
-                c1, c2, c3 = st.columns([2, 2, 1])
-                bairro = c1.text_input("Bairro")
-                cidade = c2.text_input("Cidade")
-                uf = c3.text_input("UF", value="CE")
-
-                if st.form_submit_button("Salvar Cliente"):
-                    dados = {
-                        "nome_completo": nome, "apelido_fantasia": apelido,
-                        "cpf_cnpj": cpf_cnpj, "telefone": tel, "cep": cep,
-                        "endereco": end, "bairro": bairro, "cidade": cidade
-                    }
-                    supabase.table("clientes").insert(dados).execute()
-                    st.success("Cliente cadastrado!")
-                    st.rerun()
-
-        # Listagem e Exclusão
-        st.subheader("Lista de Clientes")
-        res = supabase.table("clientes").select("*").execute()
-        if res.data:
-            df = pd.DataFrame(res.data)
-            st.dataframe(df, use_container_width=True)
-            
-            cliente_para_excluir = st.selectbox("Selecione para excluir", df['nome_completo'].tolist())
-            if st.button("🗑️ Excluir Cliente"):
-                supabase.table("clientes").delete().eq("nome_completo", cliente_para_excluir).execute()
-                st.warning("Cliente removido.")
-                st.rerun()
-
-    # --- ABA DE ESTOQUE ---
-    elif menu == "📦 Gerenciar Estoque":
-        st.header("📦 Controle de Estoque")
+    # --- ABA DE ESTOQUE (Tabela: produtos) ---
+    if menu == "📦 Gerenciar Estoque":
+        st.header("📦 Controle de Produtos")
         
         with st.expander("➕ Adicionar Novo Produto"):
             with st.form("form_prod"):
@@ -84,43 +39,82 @@ if login():
                 prc = c2.number_input("Preço de Venda", min_value=0.0)
                 est = c3.number_input("Estoque Atual", min_value=0.0)
                 if st.form_submit_button("Salvar"):
-                    supabase.table("produtos").insert({"descricao": desc, "unidade": uni, "preco_venda": prc, "estoque_atual": est}).execute()
+                    dados_prod = {
+                        "Descrição": desc, 
+                        "Unidade": uni, 
+                        "Preço de venda": prc, 
+                        "Estoque atual": est
+                    }
+                    supabase.table("produtos").insert(dados_prod).execute()
                     st.success("Produto salvo!")
                     st.rerun()
 
         res_p = supabase.table("produtos").select("*").execute()
         if res_p.data:
-            df_p = pd.DataFrame(res_p.data)
-            st.dataframe(df_p, use_container_width=True)
-            
-            prod_del = st.selectbox("Selecione para excluir", df_p['descricao'].tolist())
-            if st.button("🗑️ Excluir Produto"):
-                supabase.table("produtos").delete().eq("descricao", prod_del).execute()
-                st.rerun()
+            st.dataframe(pd.DataFrame(res_p.data), use_container_width=True)
 
-    # --- ABA DE VENDAS (PDV) ---
+    # --- ABA DE CLIENTES (Tabela: Clientes | Coluna: endereco) ---
+    elif menu == "👥 Gerenciar Clientes":
+        st.header("👥 Gestão de Clientes")
+        
+        with st.expander("➕ Adicionar Novo Cliente"):
+            with st.form("form_cliente"):
+                nome = st.text_input("Nome")
+                apelido = st.text_input("Apelido")
+                col1, col2, col3 = st.columns([2, 2, 1])
+                cpf_cnpj = col1.text_input("CPF/CNPJ")
+                tel = col2.text_input("Telefone")
+                cep = col3.text_input("CEP")
+                end = st.text_input("Endereço")
+                bairro = st.text_input("Bairro")
+                cidade = st.text_input("Cidade")
+
+                if st.form_submit_button("Salvar Cliente"):
+                    # AJUSTADO: Tabela 'Clientes' e coluna 'endereco'
+                    dados_cli = {
+                        "Nome": nome, 
+                        "Apelido": apelido,
+                        "CPF/CNPJ": cpf_cnpj, 
+                        "Telefone": tel, 
+                        "CEP": cep,
+                        "endereco": end, # <--- Nome exato que você informou
+                        "Bairro": bairro, 
+                        "Cidade": cidade
+                    }
+                    supabase.table("Clientes").insert(dados_cli).execute()
+                    st.success("Cliente cadastrado!")
+                    st.rerun()
+
+        res_c = supabase.table("Clientes").select("*").execute()
+        if res_c.data:
+            st.dataframe(pd.DataFrame(res_c.data), use_container_width=True)
+
+    # --- ABA DE VENDAS ---
     elif menu == "🛒 PDV (Vendas)":
         st.header("🛒 Lançar Pedido")
         
         # Puxar dados para os menus de seleção
-        c_data = supabase.table("clientes").select("nome_completo, endereco, bairro, cep").execute()
-        p_data = supabase.table("produtos").select("descricao, preco_venda").execute()
-        
-        lista_c = [c['nome_completo'] for c in c_data.data] if c_data.data else []
-        lista_p = [p['descricao'] for p in p_data.data] if p_data.data else []
-
-        c_sel = st.selectbox("Cliente", [""] + lista_c)
-        if c_sel:
-            detalhe = next(c for c in c_data.data if c['nome_completo'] == c_sel)
-            st.caption(f"📍 Entrega: {detalhe['endereco']}, {detalhe['bairro']} - CEP: {detalhe['cep']}")
-
-        p_sel = st.selectbox("Produto", [""] + lista_p)
-        if p_sel:
-            detalhe_p = next(p for p in p_data.data if p['descricao'] == p_sel)
-            col_v, col_q = st.columns(2)
-            preco = col_v.number_input("Preço Unit.", value=float(detalhe_p['preco_venda']))
-            qtd = col_q.number_input("Qtd", min_value=1)
-            st.subheader(f"Total: R$ {preco * qtd:.2f}")
+        try:
+            c_data = supabase.table("Clientes").select("Nome, endereco, Bairro, CEP").execute()
+            p_data = supabase.table("produtos").select("Descrição, \"Preço de venda\"").execute()
             
-            if st.button("✅ Finalizar Venda"):
-                st.success("Venda registrada com sucesso!")
+            lista_c = [c['Nome'] for c in c_data.data] if c_data.data else []
+            lista_p = [p['Descrição'] for p in p_data.data] if p_data.data else []
+
+            c_sel = st.selectbox("Selecione o Cliente", [""] + lista_c)
+            if c_sel:
+                detalhe = next(c for c in c_data.data if c['Nome'] == c_sel)
+                st.info(f"📍 Entrega: {detalhe['endereco']}, {detalhe['Bairro']} - CEP: {detalhe['CEP']}")
+
+            p_sel = st.selectbox("Selecione o Produto", [""] + lista_p)
+            if p_sel:
+                detalhe_p = next(p for p in p_data.data if p['Descrição'] == p_sel)
+                col_v, col_q = st.columns(2)
+                preco = col_v.number_input("Preço Unit.", value=float(detalhe_p['Preço de venda']))
+                qtd = col_q.number_input("Quantidade", min_value=1)
+                st.subheader(f"Total: R$ {preco * qtd:.2f}")
+                
+                if st.button("✅ Finalizar Venda"):
+                    st.success("Pedido registrado com sucesso!")
+        except Exception as e:
+            st.error(f"Aguardando cadastro de dados ou erro de coluna: {e}")
