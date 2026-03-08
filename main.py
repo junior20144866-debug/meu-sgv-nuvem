@@ -14,9 +14,15 @@ def login():
     senha = st.text_input("Senha Master", type="password")
     if senha == "1234":
         return True
-    return False
+# 3. Interface (O que acontece APÓS o login)
+if login():
+    st.success("Acesso Autorizado!")
+    
+    # Criando o menu lateral
+    st.sidebar.title("Menu de Gestão")
+    opcao = st.sidebar.selectbox("Escolha uma Opção", ["Resumo de Vendas", "Estoque"])
 
-if opcao == "Resumo de Vendas":
+    if opcao == "Resumo de Vendas":
         st.subheader("🛒 Lançar Nova Venda")
         
         # Campos para preencher
@@ -26,10 +32,13 @@ if opcao == "Resumo de Vendas":
         
         if st.button("Gravar Venda"):
             if produto:
-                # Comando que envia para o banco de dados (Supabase)
+                # Envia para o banco de dados
                 dados = {"item": produto, "preco": valor, "qtd": quantidade}
-                resposta = supabase.table("vendas").insert(dados).execute()
-                st.success(f"Venda de {produto} gravada com sucesso!")
+                try:
+                    supabase.table("vendas").insert(dados).execute()
+                    st.success(f"Venda de {produto} gravada com sucesso!")
+                except Exception as e:
+                    st.error(f"Erro ao salvar: {e}")
             else:
                 st.error("Por favor, digite o nome do produto.")
 
