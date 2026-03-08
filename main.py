@@ -71,12 +71,9 @@ if login():
                 ci_in = st.text_input("Cidade")
                 
                 if st.form_submit_button("Cadastrar Cliente"):
-                    # TENTATIVA FINAL: Se 'nome' minúsculo falhou, o banco pode estar esperando 'Nome' 
-                    # ou o cache do Supabase precisa ser forçado. 
-                    # Vou enviar os nomes que você confirmou que funcionam (endereco, bairro, cep, cpf_cnpj, apelido_fantasia)
-                    # E testar 'Nome' com N maiúsculo novamente mas sem carregar cache antigo.
+                    # AJUSTADO: nome_completo conforme sua tabela
                     dados_cli = {
-                        "Nome": n_in, 
+                        "nome_completo": n_in, 
                         "apelido_fantasia": a_in, 
                         "cpf_cnpj": d_in,
                         "telefone": t_in, 
@@ -90,35 +87,32 @@ if login():
                         st.success("Cliente cadastrado com sucesso!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erro técnico: {e}")
-                        st.info("Dica: Verifique se o nome da coluna no Supabase é exatamente 'Nome' ou 'nome'.")
+                        st.error(f"Erro ao salvar: {e}")
 
         try:
             res_c = supabase.table("Clientes").select("*").execute()
             if res_c.data:
                 st.dataframe(pd.DataFrame(res_c.data), use_container_width=True)
         except:
-            st.info("Nenhum cliente exibido ainda.")
+            st.info("Nenhum cliente cadastrado.")
 
     # --- ABA DE VENDAS ---
     elif menu == "🛒 PDV (Vendas)":
         st.header("🛒 Lançar Pedido")
         try:
-            # Usando uma busca genérica para evitar erros de cache de coluna
-            c_list = supabase.table("Clientes").select("*").execute()
-            p_list = supabase.table("produtos").select("*").execute()
+            c_list = supabase.table("Clientes").select("nome_completo, endereco, bairro").execute()
+            p_list = supabase.table("produtos").select("Descrição, \"Preço de venda\"").execute()
             
-            # Tenta pegar 'Nome' ou 'nome'
-            nomes_c = []
-            if c_list.data:
-                for c in c_list.data:
-                    nome_val = c.get('Nome') or c.get('nome')
-                    if nome_val: nomes_c.append(nome_val)
-
+            nomes_c = [c['nome_completo'] for c in c_list.data] if c_list.data else []
             nomes_p = [p['Descrição'] for p in p_list.data] if p_list.data else []
 
             col_c, col_p = st.columns(2)
             cli_sel = col_c.selectbox("Selecione o Cliente", [""] + nomes_c)
+            
+            if cli_sel:
+                det = next(c for c in c_list.data if c['nome_completo'] == cli_sel)
+                st.info(f"📍 Entrega: {det['endereco']} - {det['bairro']}")
+
             prod_sel = col_p.selectbox("Selecione o Produto", [""] + nomes_p)
             
             if prod_sel:
@@ -127,8 +121,9 @@ if login():
                 valor = c_v.number_input("Preço Unitário", value=float(det_p['Preço de venda']))
                 quant = c_q.number_input("Quantidade", min_value=1)
                 st.subheader(f"Total: R$ {valor * quant:.2f}")
+                
                 if st.button("Finalizar Venda"):
                     st.balloons()
                     st.success("Venda registrada!")
         except Exception as e:
-            st.warning(f"Aguardando dados: {e}")
+            st.warning("Cadastre produtos e clientes primeiro.")
