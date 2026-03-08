@@ -14,10 +14,10 @@ def login():
         st.session_state.autenticado = False
 
     if not st.session_state.autenticado:
-        st.title(" JMQJR - SGV")
+        st.title("🍎 Derlyana Alimentos - SGV")
         senha = st.text_input("Senha Master", type="password")
         if st.button("Entrar"):
-            if senha == "Naksu@6026":
+            if senha == "1234":
                 st.session_state.autenticado = True
                 st.rerun()
             else:
@@ -40,6 +40,7 @@ if login():
                 prc = c2.number_input("Preço de Venda", min_value=0.0)
                 est = c3.number_input("Estoque Inicial", min_value=0.0)
                 if st.form_submit_button("Salvar Produto"):
+                    # Enviando conforme os nomes da sua tabela produtos
                     dados = {"Descrição": desc, "Unidade": uni, "Preço de venda": prc, "Estoque atual": est}
                     try:
                         supabase.table("produtos").insert(dados).execute()
@@ -60,27 +61,28 @@ if login():
         st.header("👥 Gestão de Clientes")
         with st.expander("➕ Novo Cadastro"):
             with st.form("form_cli"):
-                nome = st.text_input("Nome/Razão Social")
-                apel = st.text_input("Apelido / Nome Fantasia")
+                nome_in = st.text_input("Nome/Razão Social")
+                apel_in = st.text_input("Apelido / Nome Fantasia")
                 c1, c2, c3 = st.columns([2, 2, 1])
-                doc = c1.text_input("CPF/CNPJ")
-                tel = c2.text_input("Telefone")
-                cep_val = c3.text_input("CEP")
-                end = st.text_input("Endereço")
-                bairro = st.text_input("Bairro")
-                cidade = st.text_input("Cidade")
+                doc_in = c1.text_input("CPF/CNPJ")
+                tel_in = c2.text_input("Telefone")
+                cep_in = c3.text_input("CEP")
+                end_in = st.text_input("Endereço")
+                bair_in = st.text_input("Bairro")
+                cid_in = st.text_input("Cidade")
                 
                 if st.form_submit_button("Cadastrar Cliente"):
-                    # AJUSTADO: Usando 'apelido_fantasia' em minúsculo
+                    # AJUSTADO: Usando 'bairro' e 'apelido_fantasia' em minúsculo
+                    # Se 'Nome' ou 'Telefone' também derem erro, trocaremos para minúsculo depois
                     dados_cli = {
-                        "Nome": nome, 
-                        "apelido_fantasia": apel, 
-                        "CPF/CNPJ": doc,
-                        "Telefone": tel, 
-                        "CEP": cep_val, 
-                        "endereco": end,
-                        "Bairro": bairro, 
-                        "Cidade": cidade
+                        "Nome": nome_in, 
+                        "apelido_fantasia": apel_in, 
+                        "CPF/CNPJ": doc_in,
+                        "Telefone": tel_in, 
+                        "CEP": cep_in, 
+                        "endereco": end_in,
+                        "bairro": bair_in, # Alterado para minúsculo
+                        "Cidade": cid_in
                     }
                     try:
                         supabase.table("Clientes").insert(dados_cli).execute()
@@ -100,7 +102,8 @@ if login():
     elif menu == "🛒 PDV (Vendas)":
         st.header("🛒 Lançar Pedido")
         try:
-            c_list = supabase.table("Clientes").select("Nome, endereco, Bairro").execute()
+            # Busca dinâmica respeitando os nomes das colunas
+            c_list = supabase.table("Clientes").select("Nome, endereco, bairro").execute()
             p_list = supabase.table("produtos").select("Descrição, \"Preço de venda\"").execute()
             
             nomes_c = [c['Nome'] for c in c_list.data] if c_list.data else []
@@ -111,7 +114,7 @@ if login():
             
             if cli_sel:
                 det = next(c for c in c_list.data if c['Nome'] == cli_sel)
-                st.info(f"📍 Entrega: {det['endereco']} - {det['Bairro']}")
+                st.info(f"📍 Entrega: {det['endereco']} - {det['bairro']}")
 
             prod_sel = col_p.selectbox("Selecione o Produto", [""] + nomes_p)
             
