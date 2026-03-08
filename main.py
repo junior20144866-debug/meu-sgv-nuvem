@@ -1,42 +1,57 @@
 import streamlit as st
 from supabase import create_client
 
-# 1. Configurações de Segurança e Conexão
+# 1. Conexão
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "sb_publishable_GM3H4uSu3iNDP-dOd1wl8Q_FXp5rTHWI" 
-
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
-# 2. Função de Login (SENHA ATUALIZADA AQUI)
+# 2. Login
 def login():
-    st.title("🔐 SGV Nuvem - Acesso")
+    st.title("🔐 SGV Nuvem - Derlyana Alimentos")
     senha = st.text_input("Senha Master", type="password")
-    if senha == "Naksu@6026": # <--- COLOQUE SUA NOVA SENHA AQUI
+    if senha == "Naksu@6026": # <--- Troque pela sua nova senha aqui
         return True
     return False
 
-# 3. Interface Principal
 if login():
-    st.success("Acesso Autorizado!")
     st.sidebar.title("Menu de Gestão")
-    
-    # Adicionamos "Clientes" e "Estoque" ao menu
-    opcao = st.sidebar.selectbox("Escolha uma Opção", 
-        ["Resumo de Vendas", "Cadastro de Clientes", "Estoque", "Importar Dados"])
+    opcao = st.sidebar.selectbox("Opção", ["Lançar Venda", "Cadastro de Clientes", "Estoque"])
 
-    if opcao == "Resumo de Vendas":
-        st.subheader("🛒 Lançar Nova Venda")
-        # (O código de vendas que já tínhamos continua aqui...)
-        st.info("Área de lançamentos pronta.")
+    if opcao == "Lançar Venda":
+        st.subheader("📝 Novo Pedido de Venda")
+        
+        # Dados do Cliente (Baseado no seu modelo)
+        with st.expander("👤 Dados do Cliente", expanded=True):
+            cliente = st.text_input("Cliente / Razão Social")
+            col1, col2 = st.columns(2)
+            cpf_cnpj = col1.text_input("CPF/CNPJ")
+            telefone = col2.text_input("Telefone")
+            
+            endereco = st.text_input("Endereço (Rua, Nº)")
+            c1, c2, c3 = st.columns([2, 2, 1])
+            bairro = c1.text_input("Bairro")
+            cidade = c2.text_input("Cidade")
+            uf = c3.text_input("UF", value="CE")
+
+        # Itens do Pedido
+        with st.expander("📦 Itens do Pedido", expanded=True):
+            col_item, col_uni, col_val, col_qtd = st.columns([3, 1, 1, 1])
+            item = col_item.text_input("Descrição do Item")
+            uni = col_uni.selectbox("Uni", ["KG", "UNI", "CX", "PT"])
+            valor_un = col_val.number_input("Valor Unit.", min_value=0.0)
+            qtd = col_qtd.number_input("Quantia", min_value=0.0)
+            
+            total_item = valor_un * qtd
+            st.write(f"**Total do Item: R$ {total_item:.2f}**")
+
+        if st.button("💾 Finalizar e Gravar Pedido"):
+            st.success("Pedido gravado! (Pronto para conectar ao banco)")
 
     elif opcao == "Cadastro de Clientes":
-        st.subheader("👥 Gestão de Clientes")
-        st.write("Aqui vamos listar e cadastrar seus clientes.")
+        st.subheader("👥 Banco de Dados de Clientes")
+        st.info("Aqui vamos importar sua lista do FpqSystem.")
 
     elif opcao == "Estoque":
-        st.subheader("📦 Controle de Estoque")
-        st.write("Aqui aparecerão seus produtos vindos do outro programa.")
-
-    elif opcao == "Importar Dados":
-        st.subheader("📤 Importar do Programa Antigo")
-        st.write("Como os dados estão em outro programa, vamos usar esta área para subir os arquivos.")
+        st.subheader("🍎 Controle de Produtos")
+        st.write("Lista de polpas e produtos cadastrados.")
