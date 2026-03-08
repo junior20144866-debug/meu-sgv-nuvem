@@ -14,7 +14,7 @@ def login():
         st.session_state.autenticado = False
 
     if not st.session_state.autenticado:
-        st.title("JMQJR - SGV")
+        st.title(" JMQJR - SGV")
         senha = st.text_input("Senha Master", type="password")
         if st.button("Entrar"):
             if senha == "Naksu@6026":
@@ -40,6 +40,7 @@ if login():
                 prc = c2.number_input("Preço de Venda", min_value=0.0)
                 est = c3.number_input("Estoque Inicial", min_value=0.0)
                 if st.form_submit_button("Salvar Produto"):
+                    # Aqui mantemos as maiúsculas se o estoque estiver funcionando, senão mudamos para minúsculo depois
                     dados = {"Descrição": desc, "Unidade": uni, "Preço de venda": prc, "Estoque atual": est}
                     try:
                         supabase.table("produtos").insert(dados).execute()
@@ -71,16 +72,16 @@ if login():
                 cid_in = st.text_input("Cidade")
                 
                 if st.form_submit_button("Cadastrar Cliente"):
-                    # AJUSTADO: Tudo minúsculo conforme o padrão do seu banco
+                    # PADRONIZAÇÃO TOTAL EM MINÚSCULO PARA A TABELA CLIENTES
                     dados_cli = {
-                        "Nome": nome_in, 
+                        "nome": nome_in, 
                         "apelido_fantasia": apel_in, 
-                        "cpf_cnpj": doc_in,       # Alterado: sem barra e minúsculo
-                        "telefone": tel_in,       # Provável padrão minúsculo
+                        "cpf_cnpj": doc_in,
+                        "telefone": tel_in, 
                         "cep": cep_in, 
                         "endereco": end_in, 
                         "bairro": bair_in, 
-                        "cidade": cid_in          # Provável padrão minúsculo
+                        "cidade": cid_in
                     }
                     try:
                         supabase.table("Clientes").insert(dados_cli).execute()
@@ -100,17 +101,18 @@ if login():
     elif menu == "🛒 PDV (Vendas)":
         st.header("🛒 Lançar Pedido")
         try:
-            c_list = supabase.table("Clientes").select("Nome, endereco, bairro, cep").execute()
+            # Buscando as colunas agora todas em minúsculo
+            c_list = supabase.table("Clientes").select("nome, endereco, bairro, cep").execute()
             p_list = supabase.table("produtos").select("Descrição, \"Preço de venda\"").execute()
             
-            nomes_c = [c['Nome'] for c in c_list.data] if c_list.data else []
+            nomes_c = [c['nome'] for c in c_list.data] if c_list.data else []
             nomes_p = [p['Descrição'] for p in p_list.data] if p_list.data else []
 
             col_c, col_p = st.columns(2)
             cli_sel = col_c.selectbox("Selecione o Cliente", [""] + nomes_c)
             
             if cli_sel:
-                det = next(c for c in c_list.data if c['Nome'] == cli_sel)
+                det = next(c for c in c_list.data if c['nome'] == cli_sel)
                 st.info(f"📍 Entrega: {det['endereco']} - {det['bairro']} | CEP: {det['cep']}")
 
             prod_sel = col_p.selectbox("Selecione o Produto", [""] + nomes_p)
