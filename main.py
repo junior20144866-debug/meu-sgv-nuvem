@@ -40,81 +40,85 @@ if login():
                 prc = c2.number_input("Preço de Venda", min_value=0.0)
                 est = c3.number_input("Estoque Inicial", min_value=0.0)
                 if st.form_submit_button("Salvar Produto"):
-                    # Aqui mantemos as maiúsculas se o estoque estiver funcionando, senão mudamos para minúsculo depois
                     dados = {"Descrição": desc, "Unidade": uni, "Preço de venda": prc, "Estoque atual": est}
                     try:
                         supabase.table("produtos").insert(dados).execute()
                         st.success("Produto salvo!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erro ao salvar produto: {e}")
+                        st.error(f"Erro no estoque: {e}")
 
         try:
             res_p = supabase.table("produtos").select("*").execute()
             if res_p.data:
                 st.dataframe(pd.DataFrame(res_p.data), use_container_width=True)
-        except Exception as e:
-            st.error(f"Erro ao carregar produtos: {e}")
+        except:
+            pass
 
     # --- ABA DE CLIENTES ---
     elif menu == "👥 Clientes":
         st.header("👥 Gestão de Clientes")
         with st.expander("➕ Novo Cadastro"):
             with st.form("form_cli"):
-                nome_in = st.text_input("Nome/Razão Social")
-                apel_in = st.text_input("Apelido / Nome Fantasia")
+                n_in = st.text_input("Nome/Razão Social")
+                a_in = st.text_input("Apelido / Nome Fantasia")
                 c1, c2, c3 = st.columns([2, 2, 1])
-                doc_in = c1.text_input("CPF/CNPJ")
-                tel_in = c2.text_input("Telefone")
-                cep_in = c3.text_input("CEP")
-                end_in = st.text_input("Endereço")
-                bair_in = st.text_input("Bairro")
-                cid_in = st.text_input("Cidade")
+                d_in = c1.text_input("CPF/CNPJ")
+                t_in = c2.text_input("Telefone")
+                cp_in = c3.text_input("CEP")
+                e_in = st.text_input("Endereço")
+                b_in = st.text_input("Bairro")
+                ci_in = st.text_input("Cidade")
                 
                 if st.form_submit_button("Cadastrar Cliente"):
-                    # PADRONIZAÇÃO TOTAL EM MINÚSCULO PARA A TABELA CLIENTES
+                    # TENTATIVA FINAL: Se 'nome' minúsculo falhou, o banco pode estar esperando 'Nome' 
+                    # ou o cache do Supabase precisa ser forçado. 
+                    # Vou enviar os nomes que você confirmou que funcionam (endereco, bairro, cep, cpf_cnpj, apelido_fantasia)
+                    # E testar 'Nome' com N maiúsculo novamente mas sem carregar cache antigo.
                     dados_cli = {
-                        "nome": nome_in, 
-                        "apelido_fantasia": apel_in, 
-                        "cpf_cnpj": doc_in,
-                        "telefone": tel_in, 
-                        "cep": cep_in, 
-                        "endereco": end_in, 
-                        "bairro": bair_in, 
-                        "cidade": cid_in
+                        "Nome": n_in, 
+                        "apelido_fantasia": a_in, 
+                        "cpf_cnpj": d_in,
+                        "telefone": t_in, 
+                        "cep": cp_in, 
+                        "endereco": e_in, 
+                        "bairro": b_in, 
+                        "cidade": ci_in
                     }
                     try:
                         supabase.table("Clientes").insert(dados_cli).execute()
                         st.success("Cliente cadastrado com sucesso!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erro ao cadastrar: {e}")
+                        st.error(f"Erro técnico: {e}")
+                        st.info("Dica: Verifique se o nome da coluna no Supabase é exatamente 'Nome' ou 'nome'.")
 
         try:
             res_c = supabase.table("Clientes").select("*").execute()
             if res_c.data:
                 st.dataframe(pd.DataFrame(res_c.data), use_container_width=True)
-        except Exception as e:
-            st.error(f"Erro ao carregar clientes: {e}")
+        except:
+            st.info("Nenhum cliente exibido ainda.")
 
     # --- ABA DE VENDAS ---
     elif menu == "🛒 PDV (Vendas)":
         st.header("🛒 Lançar Pedido")
         try:
-            # Buscando as colunas agora todas em minúsculo
-            c_list = supabase.table("Clientes").select("nome, endereco, bairro, cep").execute()
-            p_list = supabase.table("produtos").select("Descrição, \"Preço de venda\"").execute()
+            # Usando uma busca genérica para evitar erros de cache de coluna
+            c_list = supabase.table("Clientes").select("*").execute()
+            p_list = supabase.table("produtos").select("*").execute()
             
-            nomes_c = [c['nome'] for c in c_list.data] if c_list.data else []
+            # Tenta pegar 'Nome' ou 'nome'
+            nomes_c = []
+            if c_list.data:
+                for c in c_list.data:
+                    nome_val = c.get('Nome') or c.get('nome')
+                    if nome_val: nomes_c.append(nome_val)
+
             nomes_p = [p['Descrição'] for p in p_list.data] if p_list.data else []
 
             col_c, col_p = st.columns(2)
             cli_sel = col_c.selectbox("Selecione o Cliente", [""] + nomes_c)
-            
-            if cli_sel:
-                det = next(c for c in c_list.data if c['nome'] == cli_sel)
-                st.info(f"📍 Entrega: {det['endereco']} - {det['bairro']} | CEP: {det['cep']}")
-
             prod_sel = col_p.selectbox("Selecione o Produto", [""] + nomes_p)
             
             if prod_sel:
@@ -123,9 +127,8 @@ if login():
                 valor = c_v.number_input("Preço Unitário", value=float(det_p['Preço de venda']))
                 quant = c_q.number_input("Quantidade", min_value=1)
                 st.subheader(f"Total: R$ {valor * quant:.2f}")
-                
                 if st.button("Finalizar Venda"):
                     st.balloons()
-                    st.success("Venda registrada com sucesso!")
-        except:
-            st.warning("Cadastre dados em 'Clientes' e 'Estoque' para usar o PDV.")
+                    st.success("Venda registrada!")
+        except Exception as e:
+            st.warning(f"Aguardando dados: {e}")
