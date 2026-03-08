@@ -1,57 +1,61 @@
 import streamlit as st
 from supabase import create_client
+import pandas as pd
 
-# 1. Conexão
+# Conexão
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "sb_publishable_GM3H4uSu3iNDP-dOd1wl8Q_FXp5rTHWI" 
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
-# 2. Login
+# Login
 def login():
-    st.title("🔐 SGV Nuvem - Derlyana Alimentos")
+    st.title("🍎 Derlyana Alimentos - SGV")
     senha = st.text_input("Senha Master", type="password")
-    if senha == "Naksu@6026": # <--- Troque pela sua nova senha aqui
+    if senha == "Naksu@6026": 
         return True
     return False
 
 if login():
-    st.sidebar.title("Menu de Gestão")
-    opcao = st.sidebar.selectbox("Opção", ["Lançar Venda", "Cadastro de Clientes", "Estoque"])
+    st.sidebar.title("Navegação")
+    menu = st.sidebar.radio("Ir para:", ["PDV (Vendas)", "Gerenciar Clientes", "Gerenciar Estoque"])
 
-    if opcao == "Lançar Venda":
-        st.subheader("📝 Novo Pedido de Venda")
+    # --- ABA DE ESTOQUE (PRODUTOS) ---
+    if menu == "Gerenciar Estoque":
+        st.header("📦 Controle de Produtos")
         
-        # Dados do Cliente (Baseado no seu modelo)
-        with st.expander("👤 Dados do Cliente", expanded=True):
-            cliente = st.text_input("Cliente / Razão Social")
-            col1, col2 = st.columns(2)
-            cpf_cnpj = col1.text_input("CPF/CNPJ")
-            telefone = col2.text_input("Telefone")
+        # Formulário para Adicionar Novo
+        with st.expander("➕ Adicionar Novo Produto"):
+            with st.form("form_produto"):
+                desc = st.text_input("Descrição do Produto")
+                col1, col2, col3 = st.columns(3)
+                uni = col1.selectbox("Unidade", ["KG", "PC", "CX", "UNI"])
+                prc = col2.number_input("Preço de Venda", min_value=0.0)
+                est = col3.number_input("Estoque Inicial", min_value=0.0)
+                if st.form_submit_button("Salvar Produto"):
+                    supabase.table("produtos").insert({"descricao": desc, "unidade": uni, "preco_venda": prc, "estoque_atual": est}).execute()
+                    st.success("Produto cadastrado!")
+                    st.rerun()
+
+        # Listagem com opção de Excluir
+        st.subheader("Produtos Cadastrados")
+        res = supabase.table("produtos").select("*").execute()
+        if res.data:
+            df = pd.DataFrame(res.data)
+            st.dataframe(df[["descricao", "unidade", "preco_venda", "estoque_atual"]], use_container_width=True)
             
-            endereco = st.text_input("Endereço (Rua, Nº)")
-            c1, c2, c3 = st.columns([2, 2, 1])
-            bairro = c1.text_input("Bairro")
-            cidade = c2.text_input("Cidade")
-            uf = c3.text_input("UF", value="CE")
+            produto_del = st.selectbox("Selecione um produto para excluir", df['descricao'].tolist())
+            if st.button("🗑️ Excluir Produto Selecionado"):
+                supabase.table("produtos").delete().eq("descricao", produto_del).execute()
+                st.warning(f"Produto {produto_del} removido.")
+                st.rerun()
 
-        # Itens do Pedido
-        with st.expander("📦 Itens do Pedido", expanded=True):
-            col_item, col_uni, col_val, col_qtd = st.columns([3, 1, 1, 1])
-            item = col_item.text_input("Descrição do Item")
-            uni = col_uni.selectbox("Uni", ["KG", "UNI", "CX", "PT"])
-            valor_un = col_val.number_input("Valor Unit.", min_value=0.0)
-            qtd = col_qtd.number_input("Quantia", min_value=0.0)
-            
-            total_item = valor_un * qtd
-            st.write(f"**Total do Item: R$ {total_item:.2f}**")
-
-        if st.button("💾 Finalizar e Gravar Pedido"):
-            st.success("Pedido gravado! (Pronto para conectar ao banco)")
-
-    elif opcao == "Cadastro de Clientes":
-        st.subheader("👥 Banco de Dados de Clientes")
-        st.info("Aqui vamos importar sua lista do FpqSystem.")
-
-    elif opcao == "Estoque":
-        st.subheader("🍎 Controle de Produtos")
-        st.write("Lista de polpas e produtos cadastrados.")
+    # --- ABA DE CLIENTES ---
+    elif menu == "Gerenciar Clientes":
+        st.header("👥 Cadastro de Clientes")
+        # Segue a mesma lógica acima, mas para a tabela de clientes
+        st.info("Aqui você poderá editar os clientes do PDF.")
+        
+    elif menu == "PDV (Vendas)":
+        st.header("🛒 Ponto de Venda")
+        # Aqui vamos buscar os produtos do banco para você apenas selecionar
+        st.write("Selecione o produto e o cliente já cadastrados.")
