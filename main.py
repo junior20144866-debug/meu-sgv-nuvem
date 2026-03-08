@@ -16,15 +16,22 @@ def login():
         return True
     return False
 
-# 3. Interface (O que acontece após o login)
-if login():
-    st.success("Acesso Autorizado!")
-    st.sidebar.title("Menu de Gestão")
-    opcao = st.sidebar.selectbox("Escolha uma Opção", ["Resumo de Vendas", "Estoque", "Zerar Sistema"])
+if opcao == "Resumo de Vendas":
+        st.subheader("🛒 Lançar Nova Venda")
+        
+        # Campos para preencher
+        produto = st.text_input("Nome do Produto")
+        valor = st.number_input("Valor da Venda (R$)", min_value=0.0, format="%.2f")
+        quantidade = st.number_input("Quantidade", min_value=1, step=1)
+        
+        if st.button("Gravar Venda"):
+            if produto:
+                # Comando que envia para o banco de dados (Supabase)
+                dados = {"item": produto, "preco": valor, "qtd": quantidade}
+                resposta = supabase.table("vendas").insert(dados).execute()
+                st.success(f"Venda de {produto} gravada com sucesso!")
+            else:
+                st.error("Por favor, digite o nome do produto.")
 
-    if opcao == "Resumo de Vendas":
-        st.write("Aqui aparecerão suas vendas do Supabase.")
-    
-    elif opcao == "Zerar Sistema":
-        if st.button("⚠️ CONFIRMAR: ZERAR TUDO"):
-            st.warning("Função em desenvolvimento: Isso apagará os dados no Supabase em breve!")
+    elif opcao == "Estoque":
+        st.write("Visualização do estoque em breve...")
