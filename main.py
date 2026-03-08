@@ -2,11 +2,10 @@ import streamlit as st
 from supabase import create_client
 import pandas as pd
 
-# 1. Configurações de Conexão (Chave JWT inserida!)
+# 1. Configurações de Conexão
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c21pYXV2dmR5ZHhzaG56cmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTMzNjAsImV4cCI6MjA4ODMyOTM2MH0.Cu_AqQWMO7ptoYgWEU7bpFNEnzPLq7vL8SNDHPIe_-o"
 
-# Inicializa o cliente Supabase
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
 def login():
@@ -18,7 +17,7 @@ def login():
         st.title("🍎 Derlyana Alimentos - SGV")
         senha = st.text_input("Senha Master", type="password")
         if st.button("Entrar"):
-            if senha == "Naksu@6026":
+            if senha == "1234":
                 st.session_state.autenticado = True
                 st.rerun()
             else:
@@ -47,14 +46,14 @@ if login():
                         st.success("Produto salvo!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erro ao salvar: {e}")
+                        st.error(f"Erro ao salvar produto: {e}")
 
         try:
             res_p = supabase.table("produtos").select("*").execute()
             if res_p.data:
                 st.dataframe(pd.DataFrame(res_p.data), use_container_width=True)
         except Exception as e:
-            st.error(f"Erro ao carregar produtos: {e}")
+            st.error(f"Erro ao carregar lista de produtos: {e}")
 
     # --- ABA DE CLIENTES ---
     elif menu == "👥 Clientes":
@@ -62,7 +61,7 @@ if login():
         with st.expander("➕ Novo Cadastro"):
             with st.form("form_cli"):
                 nome = st.text_input("Nome/Razão Social")
-                apel = st.text_input("Apelido")
+                apel = st.text_input("Apelido / Nome Fantasia")
                 c1, c2, c3 = st.columns([2, 2, 1])
                 doc = c1.text_input("CPF/CNPJ")
                 tel = c2.text_input("Telefone")
@@ -72,14 +71,20 @@ if login():
                 cidade = st.text_input("Cidade")
                 
                 if st.form_submit_button("Cadastrar Cliente"):
+                    # AJUSTADO: Usando 'apelido_fantasia' em minúsculo
                     dados_cli = {
-                        "Nome": nome, "Apelido": apel, "CPF/CNPJ": doc,
-                        "Telefone": tel, "CEP": cep_val, "endereco": end, # Coluna minúscula conforme solicitado
-                        "Bairro": bairro, "Cidade": cidade
+                        "Nome": nome, 
+                        "apelido_fantasia": apel, 
+                        "CPF/CNPJ": doc,
+                        "Telefone": tel, 
+                        "CEP": cep_val, 
+                        "endereco": end,
+                        "Bairro": bairro, 
+                        "Cidade": cidade
                     }
                     try:
                         supabase.table("Clientes").insert(dados_cli).execute()
-                        st.success("Cliente cadastrado!")
+                        st.success("Cliente cadastrado com sucesso!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro ao cadastrar: {e}")
@@ -89,7 +94,7 @@ if login():
             if res_c.data:
                 st.dataframe(pd.DataFrame(res_c.data), use_container_width=True)
         except Exception as e:
-            st.error(f"Erro ao carregar clientes: {e}")
+            st.error(f"Erro ao carregar lista de clientes: {e}")
 
     # --- ABA DE VENDAS ---
     elif menu == "🛒 PDV (Vendas)":
@@ -119,6 +124,6 @@ if login():
                 
                 if st.button("Finalizar Venda"):
                     st.balloons()
-                    st.success("Pedido registrado com sucesso!")
+                    st.success("Venda simulada com sucesso!")
         except:
             st.warning("Cadastre dados em 'Clientes' e 'Estoque' para usar o PDV.")
