@@ -10,25 +10,23 @@ supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
 # 2. Função de Login Simples
 def login():
-    st.title("🔐 SGV Nuvem - Acesso Restrito")
-    senha = st.text_input("Introduza a Senha Master", type="password")
-    if senha == "1234": # Pode mudar para a senha que quiser
+    # 2. Função de Login
+def login():
+    st.title("🔐 SGV Nuvem - Acesso")
+    senha = st.text_input("Senha Master", type="password")
+    if senha == "1234":
         return True
     return False
 
-# 3. Interface do Sistema
+# 3. Interface (O que acontece após o login)
 if login():
     st.success("Acesso Autorizado!")
     st.sidebar.title("Menu de Gestão")
-    opcao = st.sidebar.selectbox("Escolha uma opção", ["Resumo", "Produtos", "Configurações"])
+    opcao = st.sidebar.selectbox("Escolha uma Opção", ["Resumo de Vendas", "Estoque", "Zerar Sistema"])
 
-    if opcao == "Resumo":
-        st.subheader("📊 Painel de Vendas")
-        st.info("Aqui aparecerão os totais de vendas do dia.")
-
-    if opcao == "Configurações":
-        st.subheader("⚙️ Zona de Perigo")
-        if st.button("🔴 ZERAR ESTOQUE"):
-            st.warning("Tem certeza? Esta ação é irreversível.")
-        if st.button("💰 ZERAR VENDAS"):
-            st.error("Isto apagará todo o histórico de vendas.")
+    if opcao == "Resumo de Vendas":
+        st.write("Aqui aparecerão suas vendas do Supabase.")
+    
+    elif opcao == "Zerar Sistema":
+        if st.button("⚠️ CONFIRMAR: ZERAR TUDO"):
+            st.warning("Função em desenvolvimento: Isso apagará os dados no Supabase em breve!")
