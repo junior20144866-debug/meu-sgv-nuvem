@@ -39,10 +39,10 @@ def login():
     if "autenticado" not in st.session_state:
         st.session_state.autenticado = False
     if not st.session_state.autenticado:
-        st.title("🍎 Derlyana Alimentos - SGV")
+        st.title("JMQJR - SGV")
         senha = st.text_input("Senha Master", type="password")
         if st.button("Entrar"):
-            if senha == "1234":
+            if senha == "Naksu@6026":
                 st.session_state.autenticado = True
                 st.rerun()
             else:
