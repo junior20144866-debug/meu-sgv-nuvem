@@ -14,7 +14,7 @@ def login():
         st.session_state.autenticado = False
 
     if not st.session_state.autenticado:
-        st.title(" JMQJR - SGV")
+        st.title("JMQJR - SGV")
         senha = st.text_input("Senha Master", type="password")
         if st.button("Entrar"):
             if senha == "Naksu@6026":
@@ -34,26 +34,33 @@ if login():
         st.header("📦 Gerenciar Estoque")
         with st.expander("➕ Adicionar Novo Produto"):
             with st.form("form_prod"):
-                desc = st.text_input("Descrição do Produto")
+                desc_in = st.text_input("Descrição do Produto")
                 c1, c2, c3 = st.columns(3)
-                uni = c1.selectbox("Unidade", ["KG", "PC", "CX", "UNI"])
-                prc = c2.number_input("Preço de Venda", min_value=0.0)
-                est = c3.number_input("Estoque Inicial", min_value=0.0)
+                uni_in = c1.selectbox("Unidade", ["KG", "PC", "CX", "UNI"])
+                prc_in = c2.number_input("Preço de Venda", min_value=0.0)
+                est_in = c3.number_input("Estoque Inicial", min_value=0.0)
                 if st.form_submit_button("Salvar Produto"):
-                    dados = {"Descrição": desc, "Unidade": uni, "Preço de venda": prc, "Estoque atual": est}
+                    # AJUSTADO: Nomes das colunas exatamente como na sua tabela
+                    dados_prod = {
+                        "descricao": desc_in, 
+                        "unidade": uni_in, 
+                        "preco_venda": prc_in, 
+                        "estoque_atual": est_in
+                    }
                     try:
-                        supabase.table("produtos").insert(dados).execute()
-                        st.success("Produto salvo!")
+                        supabase.table("produtos").insert(dados_prod).execute()
+                        st.success("Produto salvo com sucesso!")
                         st.rerun()
                     except Exception as e:
                         st.error(f"Erro no estoque: {e}")
 
         try:
-            res_p = supabase.table("produtos").select("*").execute()
+            # Lista os produtos buscando as colunas corretas
+            res_p = supabase.table("produtos").select("descricao, unidade, preco_venda, estoque_atual").execute()
             if res_p.data:
                 st.dataframe(pd.DataFrame(res_p.data), use_container_width=True)
-        except:
-            pass
+        except Exception as e:
+            st.error(f"Erro ao carregar produtos: {e}")
 
     # --- ABA DE CLIENTES ---
     elif menu == "👥 Clientes":
@@ -71,23 +78,17 @@ if login():
                 ci_in = st.text_input("Cidade")
                 
                 if st.form_submit_button("Cadastrar Cliente"):
-                    # AJUSTADO: nome_completo conforme sua tabela
                     dados_cli = {
-                        "nome_completo": n_in, 
-                        "apelido_fantasia": a_in, 
-                        "cpf_cnpj": d_in,
-                        "telefone": t_in, 
-                        "cep": cp_in, 
-                        "endereco": e_in, 
-                        "bairro": b_in, 
-                        "cidade": ci_in
+                        "nome_completo": n_in, "apelido_fantasia": a_in, 
+                        "cpf_cnpj": d_in, "telefone": t_in, "cep": cp_in, 
+                        "endereco": e_in, "bairro": b_in, "cidade": ci_in
                     }
                     try:
                         supabase.table("Clientes").insert(dados_cli).execute()
                         st.success("Cliente cadastrado com sucesso!")
                         st.rerun()
                     except Exception as e:
-                        st.error(f"Erro ao salvar: {e}")
+                        st.error(f"Erro ao cadastrar: {e}")
 
         try:
             res_c = supabase.table("Clientes").select("*").execute()
@@ -100,30 +101,26 @@ if login():
     elif menu == "🛒 PDV (Vendas)":
         st.header("🛒 Lançar Pedido")
         try:
+            # Busca respeitando os nomes corrigidos
             c_list = supabase.table("Clientes").select("nome_completo, endereco, bairro").execute()
-            p_list = supabase.table("produtos").select("Descrição, \"Preço de venda\"").execute()
+            p_list = supabase.table("produtos").select("descricao, preco_venda").execute()
             
             nomes_c = [c['nome_completo'] for c in c_list.data] if c_list.data else []
-            nomes_p = [p['Descrição'] for p in p_list.data] if p_list.data else []
+            nomes_p = [p['descricao'] for p in p_list.data] if p_list.data else []
 
             col_c, col_p = st.columns(2)
             cli_sel = col_c.selectbox("Selecione o Cliente", [""] + nomes_c)
-            
-            if cli_sel:
-                det = next(c for c in c_list.data if c['nome_completo'] == cli_sel)
-                st.info(f"📍 Entrega: {det['endereco']} - {det['bairro']}")
-
             prod_sel = col_p.selectbox("Selecione o Produto", [""] + nomes_p)
             
             if prod_sel:
-                det_p = next(p for p in p_list.data if p['Descrição'] == prod_sel)
+                det_p = next(p for p in p_list.data if p['descricao'] == prod_sel)
                 c_v, c_q = st.columns(2)
-                valor = c_v.number_input("Preço Unitário", value=float(det_p['Preço de venda']))
+                valor = c_v.number_input("Preço Unitário", value=float(det_p['preco_venda']))
                 quant = c_q.number_input("Quantidade", min_value=1)
                 st.subheader(f"Total: R$ {valor * quant:.2f}")
                 
                 if st.button("Finalizar Venda"):
                     st.balloons()
-                    st.success("Venda registrada!")
+                    st.success("Pedido simulado com sucesso!")
         except Exception as e:
-            st.warning("Cadastre produtos e clientes primeiro.")
+            st.warning(f"Aguardando dados: {e}")
