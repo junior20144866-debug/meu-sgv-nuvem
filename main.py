@@ -14,7 +14,7 @@ def login():
         st.session_state.autenticado = False
 
     if not st.session_state.autenticado:
-        st.title("JMQJR - SGV")
+        st.title(" JMQJR - SGV")
         senha = st.text_input("Senha Master", type="password")
         if st.button("Entrar"):
             if senha == "Naksu@6026":
@@ -40,7 +40,7 @@ if login():
                 prc_in = c2.number_input("Preço de Venda", min_value=0.0)
                 est_in = c3.number_input("Estoque Inicial", min_value=0.0)
                 if st.form_submit_button("Salvar Produto"):
-                    # AJUSTADO: Nomes das colunas exatamente como na sua tabela
+                    # AJUSTADO: Tudo minúsculo e sem acento
                     dados_prod = {
                         "descricao": desc_in, 
                         "unidade": uni_in, 
@@ -55,12 +55,11 @@ if login():
                         st.error(f"Erro no estoque: {e}")
 
         try:
-            # Lista os produtos buscando as colunas corretas
-            res_p = supabase.table("produtos").select("descricao, unidade, preco_venda, estoque_atual").execute()
+            res_p = supabase.table("produtos").select("*").execute()
             if res_p.data:
                 st.dataframe(pd.DataFrame(res_p.data), use_container_width=True)
         except Exception as e:
-            st.error(f"Erro ao carregar produtos: {e}")
+            st.error(f"Erro ao carregar lista: {e}")
 
     # --- ABA DE CLIENTES ---
     elif menu == "👥 Clientes":
@@ -97,13 +96,12 @@ if login():
         except:
             st.info("Nenhum cliente cadastrado.")
 
-    # --- ABA DE VENDAS ---
+    # --- ABA DE VENDAS (PDV COM BAIXA DE ESTOQUE) ---
     elif menu == "🛒 PDV (Vendas)":
         st.header("🛒 Lançar Pedido")
         try:
-            # Busca respeitando os nomes corrigidos
-            c_list = supabase.table("Clientes").select("nome_completo, endereco, bairro").execute()
-            p_list = supabase.table("produtos").select("descricao, preco_venda").execute()
+            c_list = supabase.table("Clientes").select("nome_completo").execute()
+            p_list = supabase.table("produtos").select("descricao, preco_venda, estoque_atual").execute()
             
             nomes_c = [c['nome_completo'] for c in c_list.data] if c_list.data else []
             nomes_p = [p['descricao'] for p in p_list.data] if p_list.data else []
@@ -114,13 +112,25 @@ if login():
             
             if prod_sel:
                 det_p = next(p for p in p_list.data if p['descricao'] == prod_sel)
+                estoque_disponivel = det_p['estoque_atual']
+                
+                st.write(f"📊 Estoque atual: **{estoque_disponivel}**")
+                
                 c_v, c_q = st.columns(2)
                 valor = c_v.number_input("Preço Unitário", value=float(det_p['preco_venda']))
-                quant = c_q.number_input("Quantidade", min_value=1)
-                st.subheader(f"Total: R$ {valor * quant:.2f}")
+                quant = c_q.number_input("Quantidade", min_value=1.0, max_value=float(estoque_disponivel))
+                
+                total = valor * quant
+                st.subheader(f"Total: R$ {total:.2f}")
                 
                 if st.button("Finalizar Venda"):
-                    st.balloons()
-                    st.success("Pedido simulado com sucesso!")
+                    if quant <= estoque_disponivel:
+                        # Realiza a baixa no estoque
+                        novo_estoque = estoque_disponivel - quant
+                        supabase.table("produtos").update({"estoque_atual": novo_estoque}).eq("descricao", prod_sel).execute()
+                        st.balloons()
+                        st.success(f"Venda finalizada! Novo estoque de {prod_sel}: {novo_estoque}")
+                    else:
+                        st.error("Quantidade insuficiente em estoque!")
         except Exception as e:
-            st.warning(f"Aguardando dados: {e}")
+            st.warning("Cadastre produtos e clientes para habilitar as vendas.")
