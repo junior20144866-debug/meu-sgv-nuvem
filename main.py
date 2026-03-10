@@ -3,24 +3,24 @@ from supabase import create_client
 import pandas as pd
 from fpdf import FPDF
 from datetime import datetime, date
-import io
 
-# 1. Conexão (Mantenha suas credenciais)
+# 1. Conexão
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c21pYXV2dmR5ZHhzaG56cmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTMzNjAsImV4cCI6MjA4ODMyOTM2MH0.Cu_AqQWMO7ptoYgWEU7bpFNEnzPLq7vL8SNDHPIe_-o"
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
-# --- Inicializar a Cesta de Compras ---
 if 'carrinho' not in st.session_state:
     st.session_state.carrinho = []
 
-# --- FUNÇÃO DE IMPRESSÃO PROFISSIONAL (Suporta múltiplos itens) ---
 def gerar_recibo_pdf(empresa, cliente_nome, itens, condicao, vencimento, vias=1):
     pdf = FPDF(format='A4')
     total_geral = sum(item['total'] for item in itens)
     
+    # Formata a data de vencimento para o padrão BR no PDF
+    data_venc_br = vencimento.strftime('%d/%m/%Y')
+    data_hoje_br = datetime.now().strftime('%d/%m/%Y')
+    
     def desenhar_via(y_offset):
-        # Cabeçalho da Empresa
         pdf.set_xy(10, y_offset + 10)
         pdf.set_font("Arial", "B", 12)
         pdf.cell(130, 6, empresa['nome_empresa'], ln=0)
@@ -34,20 +34,18 @@ def gerar_recibo_pdf(empresa, cliente_nome, itens, condicao, vencimento, vias=1)
         pdf.set_font("Arial", "B", 11)
         pdf.cell(190, 7, "PEDIDO DE VENDA", border="TB", ln=1, align="C")
         
-        # Dados do Cliente e Pagamento
         pdf.ln(2)
         pdf.set_font("Arial", "B", 9)
         pdf.cell(120, 5, f"CLIENTE: {cliente_nome}", ln=0)
-        pdf.cell(70, 5, f"DATA: {datetime.now().strftime('%d/%m/%Y')}", ln=1, align="R")
+        pdf.cell(70, 5, f"DATA: {data_hoje_br}", ln=1, align="R")
         pdf.set_font("Arial", "", 9)
         pdf.cell(120, 5, f"PAGAMENTO: {condicao}", ln=0)
-        pdf.cell(70, 5, f"VENCIMENTO: {vencimento}", ln=1, align="R")
+        pdf.cell(70, 5, f"VENCIMENTO: {data_venc_br}", ln=1, align="R")
         
-        # Tabela de Itens
         pdf.ln(3)
         pdf.set_fill_color(240, 240, 240)
         pdf.set_font("Arial", "B", 8)
-        pdf.cell(90, 6, "Descrição", 1, 0, "L", True)
+        pdf.cell(90, 6, "Descricao", 1, 0, "L", True)
         pdf.cell(20, 6, "Qtd", 1, 0, "C", True)
         pdf.cell(20, 6, "Unid", 1, 0, "C", True)
         pdf.cell(30, 6, "Val. Unit", 1, 0, "C", True)
@@ -61,7 +59,6 @@ def gerar_recibo_pdf(empresa, cliente_nome, itens, condicao, vencimento, vias=1)
             pdf.cell(30, 6, f"R$ {item['preco_venda']:.2f}", 1, 0, "R")
             pdf.cell(30, 6, f"R$ {item['total']:.2f}", 1, 1, "R")
         
-        # Totalizador
         pdf.set_font("Arial", "B", 10)
         pdf.cell(160, 8, "VALOR TOTAL DO PEDIDO:", 0, 0, "R")
         pdf.cell(30, 8, f"R$ {total_geral:.2f}", 0, 1, "R")
@@ -73,9 +70,11 @@ def gerar_recibo_pdf(empresa, cliente_nome, itens, condicao, vencimento, vias=1)
     desenhar_via(0)
     if vias == 2:
         desenhar_via(148)
-    return pdf.output(dest='S')
+    
+    # CORREÇÃO DO ERRO: Retorna bytes puros para o Streamlit
+    return bytes(pdf.output())
 
-# --- LÓGICA DE LOGIN ---
+# --- LÓGICA DE INTERFACE ---
 if "autenticado" not in st.session_state: st.session_state.autenticado = False
 
 if not st.session_state.autenticado:
@@ -86,20 +85,17 @@ if not st.session_state.autenticado:
 else:
     menu = st.sidebar.radio("Navegação", ["🛒 PDV", "👥 Clientes", "📦 Estoque", "⚙️ Configurações"])
 
-    # (Mantenha as abas de Clientes, Estoque e Configurações como estão)
+    # (Mantenha Clientes, Estoque e Configurações como na versão anterior)
 
-    # --- ABA PDV (REFORMULADA PARA MÚLTIPLOS ITENS) ---
     if menu == "🛒 PDV":
         st.header("🛒 Novo Pedido")
         
-        # 1. Seleção do Cliente
         res_c = supabase.table("Clientes").select("nome_completo").execute()
         clientes = [c['nome_completo'] for c in res_c.data]
         cliente_sel = st.selectbox("Selecione o Cliente", [""] + clientes)
         
-        # 2. Adicionar Produtos à Cesta
         st.divider()
-        col1, col2, col3, col4 = st.columns([3,1,1,1])
+        col1, col2, col3 = st.columns([3,1,1])
         
         res_p = supabase.table("produtos").select("*").execute()
         prod_dict = {p['descricao']: p for p in res_p.data}
@@ -107,7 +103,7 @@ else:
         p_sel = col1.selectbox("Produto", [""] + list(prod_dict.keys()))
         qtd = col2.number_input("Qtd", min_value=0.1, step=0.1)
         
-        if col4.button("➕ Adicionar"):
+        if col3.button("➕ Adicionar"):
             if p_sel:
                 p_info = prod_dict[p_sel]
                 item = {
@@ -118,36 +114,36 @@ else:
                     "total": qtd * p_info['preco_venda']
                 }
                 st.session_state.carrinho.append(item)
-                st.toast(f"{p_sel} adicionado!")
+                st.rerun()
 
-        # 3. Exibir Cesta
         if st.session_state.carrinho:
-            df_cart = pd.DataFrame(st.session_state.carrinho)
-            st.table(df_cart)
+            st.table(pd.DataFrame(st.session_state.carrinho))
             if st.button("🗑️ Limpar Carrinho"):
                 st.session_state.carrinho = []
                 st.rerun()
             
-            total_pedido = df_cart['total'].sum()
+            total_pedido = sum(i['total'] for i in st.session_state.carrinho)
             st.subheader(f"Total: R$ {total_pedido:.2f}")
             
-            # 4. Condições de Pagamento e Vencimento
             st.divider()
             c1, c2, c3 = st.columns(3)
             cond = c1.selectbox("Pagamento", ["À Vista", "À Prazo"])
             
             vencimento = date.today()
             if cond == "À Prazo":
-                vencimento = c2.date_input("Data de Vencimento", min_value=date.today())
+                # Mostra o calendário já com formato visual BR (depende do navegador, mas o valor é tratado)
+                vencimento = c2.date_input("Data de Vencimento", value=date.today(), format="DD/MM/YYYY")
             
             vias = c3.radio("Vias", [1, 2])
 
             if st.button("✅ FINALIZAR VENDA"):
-                # Aqui você salvaria o pedido no banco (opcional para agora)
-                # E daria baixa no estoque de cada item do carrinho
-                
                 emp_info = supabase.table("config_empresa").select("*").eq("id", 1).execute().data[0]
-                pdf_bytes = gerar_recibo_pdf(emp_info, cliente_sel, st.session_state.carrinho, cond, vencimento, vias)
+                pdf_output = gerar_recibo_pdf(emp_info, cliente_sel, st.session_state.carrinho, cond, vencimento, vias)
                 
-                st.download_button("📄 Baixar Pedido em PDF", pdf_bytes, f"pedido_{cliente_sel}.pdf", "application/pdf")
-                st.success("Venda processada!")
+                st.download_button(
+                    label="📄 Baixar Pedido em PDF",
+                    data=pdf_output,
+                    file_name=f"pedido_{cliente_sel}_{datetime.now().strftime('%d_%m_%Y')}.pdf",
+                    mime="application/pdf"
+                )
+                st.success("Venda processada com sucesso!")
