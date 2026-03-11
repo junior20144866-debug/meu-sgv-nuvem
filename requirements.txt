@@ -1,4 +1,5 @@
 streamlit
 supabase
 pandas
-fpdf2
+fpdf
+plotly
