@@ -11,71 +11,73 @@ supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
 if 'carrinho' not in st.session_state: st.session_state.carrinho = []
 
-# --- FUNÇÃO DE IMPRESSÃO REFORMULADA (BASEADA NO SEU PDF) ---
-def gerar_recibo_pdf(empresa, cliente_nome, itens, condicao, vencimento, n_pedido, taxa=0.0, desc_taxa="", vias=1):
+# --- FUNÇÃO DE IMPRESSÃO REFORMULADA ---
+def gerar_recibo_pdf(empresa, cliente, itens, condicao, vencimento, n_pedido, taxa=0.0, desc_taxa="", vias=2):
     pdf = FPDF(format='A4')
     total_produtos = sum(item['total'] for item in itens)
     total_geral = total_produtos + taxa
     
     def desenhar_via(y_offset):
-        # Cabeçalho Conforme PDF
+        # Cabeçalho
         pdf.set_xy(10, y_offset + 10)
         pdf.set_font("Arial", "B", 12)
-        pdf.cell(100, 6, empresa['nome_empresa'], ln=0)
+        pdf.cell(120, 6, empresa.get('nome_empresa', 'Sua Empresa'), ln=0)
         pdf.set_font("Arial", "", 10)
-        pdf.cell(90, 6, f"Fone: {empresa['telefone']}", ln=1, align="R") # [cite: 9]
-        
+        pdf.cell(70, 6, f"Fone: {empresa.get('telefone', '')}", ln=1, align="R")
         pdf.set_x(10)
-        pdf.cell(100, 5, empresa.get('endereco', ''), ln=0)
-        pdf.cell(90, 5, f"CNPJ: {empresa.get('cnpj', '')}", ln=1, align="R") # [cite: 10]
+        pdf.cell(120, 5, empresa.get('endereco', ''), ln=0)
+        pdf.cell(70, 5, f"CNPJ: {empresa.get('cnpj', '')}", ln=1, align="R")
         
         pdf.ln(2)
-        pdf.set_font("Arial", "B", 11)
-        pdf.cell(190, 7, f"PEDIDO DE VENDA Nº {n_pedido:04d}", border="TB", ln=1, align="C") # [cite: 8, 11]
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(190, 8, f"PEDIDO DE VENDA Nº {n_pedido:04d}", border="TB", ln=1, align="C")
         
-        # Dados Cliente e Data
         pdf.ln(2)
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(120, 6, f"CLIENTE: {cliente}", ln=0)
+        pdf.set_font("Arial", "", 10)
+        pdf.cell(70, 6, f"DATA: {datetime.now().strftime('%d/%m/%Y')}", ln=1, align="R")
+        
+        # Tabela
+        pdf.ln(2)
+        pdf.set_fill_color(230, 230, 230)
         pdf.set_font("Arial", "B", 9)
-        pdf.cell(120, 5, f"CLIENTE: {cliente_nome}", ln=0) # [cite: 3]
-        pdf.cell(70, 5, f"DATA: {datetime.now().strftime('%d/%m/%Y')}", ln=1, align="R") # [cite: 12]
+        pdf.cell(85, 7, "Descricao", 1, 0, "L", True)
+        pdf.cell(20, 7, "Qtd", 1, 0, "C", True)
+        pdf.cell(20, 7, "Unid", 1, 0, "C", True)
+        pdf.cell(30, 7, "Val. Unit", 1, 0, "C", True)
+        pdf.cell(35, 7, "Total", 1, 1, "C", True)
         
-        # Tabela de Itens
+        pdf.set_font("Arial", "", 9)
+        for i in itens:
+            pdf.cell(85, 7, i['descricao'], 1)
+            pdf.cell(20, 7, str(i['quantidade']), 1, 0, "C")
+            pdf.cell(20, 7, i['unidade'], 1, 0, "C")
+            pdf.cell(30, 7, f"R$ {i['preco_venda']:.2f}", 1, 0, "R")
+            pdf.cell(35, 7, f"R$ {i['total']:.2f}", 1, 1, "R")
+        
+        # Rodapé Financeiro
         pdf.ln(2)
-        pdf.set_fill_color(240, 240, 240)
-        pdf.set_font("Arial", "B", 8)
-        pdf.cell(85, 6, "Descricao", 1, 0, "L", True)
-        pdf.cell(20, 6, "Qtd", 1, 0, "C", True)
-        pdf.cell(20, 6, "Unid", 1, 0, "C", True)
-        pdf.cell(30, 6, "Val. Unit", 1, 0, "C", True)
-        pdf.cell(35, 6, "Total", 1, 1, "C", True)
+        txt_pgto = "À Vista" if condicao == "À Vista" else f"À Prazo - Venc: {vencimento.strftime('%d/%m/%Y')}"
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(130, 6, f"Pagamento: {txt_pgto}", 0)
+        pdf.cell(60, 6, f"Total Produtos: R$ {total_produtos:.2f}", 0, ln=1, align="R")
         
+        pdf.set_font("Arial", "I", 9)
+        obs_texto = f"Obs/Taxa: {desc_taxa}" if desc_taxa else "Observações:"
+        pdf.cell(130, 6, obs_texto, 0)
+        pdf.set_font("Arial", "B", 10)
+        pdf.cell(60, 6, f"(+) Taxas: R$ {taxa:.2f}", 0, ln=1, align="R")
+        
+        pdf.set_font("Arial", "B", 12)
+        pdf.cell(190, 10, f"VALOR TOTAL: R$ {total_geral:.2f}", 0, ln=1, align="R")
+        
+        # Assinaturas
+        pdf.ln(12)
+        pdf.cell(90, 0, "", border="T")
+        pdf.cell(10, 0, "")
+        pdf.cell(90, 0, "", border="T", ln=1)
         pdf.set_font("Arial", "", 8)
-        for item in itens:
-            pdf.cell(85, 6, item['descricao'], 1)
-            pdf.cell(20, 6, str(item['quantidade']), 1, 0, "C")
-            pdf.cell(20, 6, item['unidade'], 1, 0, "C")
-            pdf.cell(30, 6, f"R$ {item['preco_venda']:.2f}", 1, 0, "R")
-            pdf.cell(35, 6, f"R$ {item['total']:.2f}", 1, 1, "R")
-        
-        # Rodapé Financeiro [cite: 13, 17, 24]
-        pdf.ln(2)
-        pdf.set_font("Arial", "B", 9)
-        pdf.cell(130, 5, f"Pagamento: {condicao} {'(Venc: ' + vencimento.strftime('%d/%m/%Y') + ')' if condicao == 'À Prazo' else ''}", 0)
-        pdf.cell(60, 5, f"Total Produtos: R$ {total_produtos:.2f}", 0, ln=1, align="R")
-        
-        if taxa > 0:
-            pdf.cell(130, 5, f"Observação: {desc_taxa}", 0)
-            pdf.cell(60, 5, f"(+) Taxas: R$ {taxa:.2f}", 0, ln=1, align="R")
-            
-        pdf.set_font("Arial", "B", 11)
-        pdf.cell(190, 8, f"VALOR TOTAL: R$ {total_geral:.2f}", 0, ln=1, align="R")
-        
-        # Assinaturas [cite: 25]
-        pdf.ln(10)
-        pdf.cell(90, 0.1, "", border="T")
-        pdf.cell(10, 0.1, "")
-        pdf.cell(90, 0.1, "", border="T", ln=1)
-        pdf.set_font("Arial", "I", 8)
         pdf.cell(90, 5, "Visto da Empresa", 0, 0, "C")
         pdf.cell(10, 5, "")
         pdf.cell(90, 5, "Visto do Cliente", 0, 1, "C")
@@ -88,7 +90,9 @@ def gerar_recibo_pdf(empresa, cliente_nome, itens, condicao, vencimento, n_pedid
     if vias == 2: desenhar_via(148)
     return bytes(pdf.output())
 
-# --- LOGIN ---
+# --- INTERFACE ---
+st.set_page_config(page_title="JMQJR - SGV", layout="wide")
+
 if "autenticado" not in st.session_state: st.session_state.autenticado = False
 
 if not st.session_state.autenticado:
@@ -97,78 +101,102 @@ if not st.session_state.autenticado:
         st.session_state.autenticado = True
         st.rerun()
 else:
-    menu = st.sidebar.radio("Navegação", ["🛒 PDV", "📥 Reposição de Estoque", "👥 Clientes", "📦 Estoque", "📊 Relatórios", "⚙️ Configurações"])
+    menu = st.sidebar.radio("Navegação", ["🛒 PDV", "📥 Reposição", "👥 Clientes", "📦 Estoque", "📊 Relatórios", "⚙️ Configurações"])
 
-    # --- ABA CLIENTES (REIMPLANTADO EDIÇÃO/INCLUSÃO) ---
+    # --- ABA CLIENTES ---
     if menu == "👥 Clientes":
         st.header("👥 Gestão de Clientes")
-        aba1, aba2 = st.tabs(["Listar e Editar", "➕ Novo Cadastro"])
-        
-        with aba2:
-            with st.form("add_cli"):
-                n_c = st.text_input("Nome Completo")
-                doc_c = st.text_input("CPF/CNPJ")
-                if st.form_submit_button("Salvar Cliente"):
-                    supabase.table("Clientes").insert({"nome_completo": n_c, "cpf_cnpj": doc_c}).execute()
-                    st.success("Cadastrado!")
-        
-        with aba1:
-            res_c = supabase.table("Clientes").select("*").execute()
-            df_c = pd.DataFrame(res_c.data)
-            if not df_c.empty:
-                sel = st.selectbox("Selecione para alterar", df_c['nome_completo'])
-                item = df_c[df_c['nome_completo'] == sel].iloc[0]
-                with st.expander(f"Editar {sel}"):
-                    novo_n = st.text_input("Nome", value=item['nome_completo'])
-                    if st.button("Salvar Alterações"):
-                        supabase.table("Clientes").update({"nome_completo": novo_n}).eq("id", item['id']).execute()
-                        st.rerun()
-                    if st.button("❌ EXCLUIR"):
-                        supabase.table("Clientes").delete().eq("id", item['id']).execute()
-                        st.rerun()
-                st.dataframe(df_c)
+        t1, t2 = st.tabs(["Lista", "Novo"])
+        with t2:
+            with st.form("c_f"):
+                n = st.text_input("Nome")
+                d = st.text_input("CPF/CNPJ")
+                if st.form_submit_button("Salvar"):
+                    supabase.table("Clientes").insert({"nome_completo": n, "cpf_cnpj": d}).execute()
+                    st.rerun()
+        with t1:
+            data = supabase.table("Clientes").select("*").execute().data
+            if data:
+                df = pd.DataFrame(data)
+                sel = st.selectbox("Editar Cliente", df['nome_completo'])
+                st.dataframe(df)
+            else: st.info("Nenhum cliente.")
 
-    # --- ABA REPOSIÇÃO (NOVA FUNÇÃO) ---
-    elif menu == "📥 Reposição de Estoque":
-        st.header("📥 Entrada de Mercadorias")
-        res_p = supabase.table("produtos").select("*").execute()
-        p_list = {p['descricao']: p for p in res_p.data}
-        
-        with st.form("entrada"):
-            prod_ent = st.selectbox("Escolha o Produto", list(p_list.keys()))
-            qtd_ent = st.number_input("Quantidade de Entrada", min_value=0.1)
-            if st.form_submit_button("Confirmar Entrada"):
-                nova_qtd = p_list[prod_ent]['estoque_atual'] + qtd_ent
-                supabase.table("produtos").update({"estoque_atual": nova_qtd}).eq("descricao", prod_ent).execute()
-                st.success(f"Estoque de {prod_ent} atualizado para {nova_qtd}!")
+    # --- ABA ESTOQUE ---
+    elif menu == "📦 Estoque":
+        st.header("📦 Estoque")
+        t1, t2 = st.tabs(["Lista/Editar", "Novo Produto"])
+        with t2:
+            with st.form("p_f"):
+                desc = st.text_input("Descrição")
+                prc = st.number_input("Preço", min_value=0.0)
+                und = st.selectbox("Unidade", ["KG", "UNI", "CX"])
+                if st.form_submit_button("Cadastrar"):
+                    supabase.table("produtos").insert({"descricao": desc, "preco_venda": prc, "unidade": und, "estoque_atual": 0}).execute()
+                    st.rerun()
+        with t1:
+            data = supabase.table("produtos").select("*").execute().data
+            if data: st.dataframe(pd.DataFrame(data))
+            else: st.info("Sem produtos.")
 
     # --- ABA PDV ---
     elif menu == "🛒 PDV":
         st.header("🛒 Novo Pedido")
-        # (Lógica de seleção de cliente e produto permanece a mesma...)
-        # Na finalização:
-        st.divider()
-        col_t1, col_t2 = st.columns(2)
-        taxa_v = col_t1.number_input("Taxas Adicionais (Entrega, etc)", min_value=0.0) # [cite: 17, 22]
-        taxa_d = col_t2.text_input("Descrição da Taxa") # [cite: 16]
+        # Dados para o PDV
+        clientes = [c['nome_completo'] for c in supabase.table("Clientes").select("nome_completo").execute().data]
+        prods = {p['descricao']: p for p in supabase.table("produtos").select("*").execute().data}
         
-        if st.button("✅ FINALIZAR E GERAR PEDIDO"):
-            # Incrementar número do pedido 
-            ctrl = supabase.table("controle_pedidos").select("*").eq("id", 1).execute().data[0]
-            novo_n = ctrl['ultimo_numero'] + 1
-            supabase.table("controle_pedidos").update({"ultimo_numero": novo_n}).eq("id", 1).execute()
-            
-            emp = supabase.table("config_empresa").select("*").eq("id", 1).execute().data[0]
-            pdf = gerar_recibo_pdf(emp, "NOME_CLIENTE", st.session_state.carrinho, "Condicao", date.today(), novo_n, taxa_v, taxa_d, 2)
-            st.download_button("📄 Baixar Pedido", pdf, f"Pedido_{novo_n}.pdf")
+        c1, c2, c3 = st.columns([3, 1, 1])
+        cliente_v = c1.selectbox("Selecione o Cliente", [""] + clientes)
+        
+        st.divider()
+        col_p, col_q, col_b = st.columns([3, 1, 1])
+        p_sel = col_p.selectbox("Produto", [""] + list(prods.keys()))
+        qtd_v = col_q.number_input("Qtd", min_value=0.1, step=0.1)
+        if col_b.button("➕ Adicionar"):
+            if p_sel:
+                p = prods[p_sel]
+                st.session_state.carrinho.append({"descricao": p_sel, "quantidade": qtd_v, "unidade": p['unidade'], "preco_venda": p['preco_venda'], "total": qtd_v * p['preco_venda']})
+                st.rerun()
 
-    # --- ABA RELATÓRIOS ---
-    elif menu == "📊 Relatórios":
-        st.header("📊 Relatórios Gerenciais")
-        if st.button("📦 Lista de Preços e Estoque"):
-            res = supabase.table("produtos").select("descricao, unidade, preco_venda, estoque_atual").execute()
-            st.dataframe(pd.DataFrame(res.data))
-            # Aqui poderíamos gerar um PDF com a lista
-        if st.button("👥 Relatório de Clientes"):
-            res = supabase.table("Clientes").select("*").execute()
-            st.dataframe(pd.DataFrame(res.data))
+        if st.session_state.carrinho:
+            st.table(pd.DataFrame(st.session_state.carrinho))
+            if st.button("🗑️ Limpar Carrinho"):
+                st.session_state.carrinho = []
+                st.rerun()
+            
+            st.divider()
+            col_f1, col_f2, col_f3 = st.columns(3)
+            cond_v = col_f1.selectbox("Pagamento", ["À Vista", "À Prazo"])
+            venc_v = col_f2.date_input("Vencimento") if cond_v == "À Prazo" else date.today()
+            tax_v = col_f3.number_input("Taxa/Entrega (R$)", min_value=0.0)
+            obs_v = st.text_input("Descrição da Taxa / Observação")
+            
+            if st.button("✅ FINALIZAR PEDIDO"):
+                # Lógica do número do pedido
+                try:
+                    res_n = supabase.table("controle_pedidos").select("ultimo_numero").eq("id", 1).execute().data[0]
+                    novo_n = res_n['ultimo_numero'] + 1
+                    supabase.table("controle_pedidos").update({"ultimo_numero": novo_n}).eq("id", 1).execute()
+                except: novo_n = 1
+                
+                emp = supabase.table("config_empresa").select("*").eq("id", 1).execute().data[0]
+                pdf = gerar_recibo_pdf(emp, cliente_v, st.session_state.carrinho, cond_v, venc_v, novo_n, tax_v, obs_v)
+                st.download_button("📄 Baixar Pedido", pdf, f"Pedido_{novo_n}.pdf", "application/pdf")
+
+    # --- ABA CONFIGURAÇÕES ---
+    elif menu == "⚙️ Configurações":
+        st.header("⚙️ Minha Empresa")
+        try:
+            dados = supabase.table("config_empresa").select("*").eq("id", 1).execute().data[0]
+        except:
+            dados = {"nome_empresa": "", "endereco": "", "telefone": "", "cnpj": "", "email": ""}
+        
+        with st.form("f_emp"):
+            nome_e = st.text_input("Nome da Empresa", value=dados['nome_empresa'])
+            end_e = st.text_input("Endereço", value=dados['endereco'])
+            tel_e = st.text_input("Telefone", value=dados['telefone'])
+            cnpj_e = st.text_input("CNPJ", value=dados['cnpj'])
+            if st.form_submit_button("Salvar Configurações"):
+                supabase.table("config_empresa").upsert({"id": 1, "nome_empresa": nome_e, "endereco": end_e, "telefone": tel_e, "cnpj": cnpj_e}).execute()
+                st.success("Salvo!")
