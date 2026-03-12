@@ -1,68 +1,52 @@
-import streamlit as st
-import pandas as pd
-
-# Função para converter os dados brutos do PDF em uma lista para o Supabase
-def processar_importacao_pdf():
-    # Dados extraídos do seu PDF (Derlyana Alimentos)
-    dados_pdf = [
-        {"descricao": "CAJUÍNA 200 ML (24 UN)", "unidade": "CX", "preco_venda": 60.00, "estoque_atual": 30.0, "ean13": "00027"},
-        {"descricao": "CAJUINA 480 ML (12 UN)", "unidade": "PC", "preco_venda": 55.00, "estoque_atual": 0.0, "ean13": "00028"},
-        {"descricao": "POLPA DE ABACAXI", "unidade": "KG", "preco_venda": 14.00, "estoque_atual": 11.0, "ean13": "00001"},
-        {"descricao": "POLPA DE CAJU", "unidade": "KG", "preco_venda": 9.50, "estoque_atual": 20.0, "ean13": "00003"},
-        {"descricao": "POLPA DE CAJÁ", "unidade": "KG", "preco_venda": 15.00, "estoque_atual": 20.0, "ean13": "00004"},
-        {"descricao": "POLPA DE GRAVIOLA", "unidade": "KG", "preco_venda": 15.00, "estoque_atual": 8.0, "ean13": "00006"}
+# --- FUNÇÃO COM TODOS OS PRODUTOS DO PDF ---
+def importar_todos_produtos_pdf():
+    # Mapeamento completo baseado no seu documento PDF
+    lista_produtos = [
+        {"ean13": "00027", "descricao": "CAJUÍNA 200 ML (FARDO 24 UN)", "unidade": "CX", "preco_venda": 60.00, "estoque_atual": 30.0},
+        {"ean13": "00028", "descricao": "CAJUINA 480 ML (FARDO 12 UN)", "unidade": "PC", "preco_venda": 55.00, "estoque_atual": 0.0},
+        {"ean13": "00025", "descricao": "POLPA ABACAXI C/HORTELA (500G)", "unidade": "PC", "preco_venda": 8.00, "estoque_atual": 0.0},
+        {"ean13": "00001", "descricao": "POLPA DE ABACAXI (KG)", "unidade": "KG", "preco_venda": 14.00, "estoque_atual": 11.0},
+        {"ean13": "00009", "descricao": "POLPA DE ABACAXI (500G)", "unidade": "PC", "preco_venda": 7.00, "estoque_atual": 0.0},
+        {"ean13": "00002", "descricao": "POLPA DE ACEROLA (KG)", "unidade": "KG", "preco_venda": 12.00, "estoque_atual": 19.0},
+        {"ean13": "00010", "descricao": "POLPA DE ACEROLA (500G)", "unidade": "PC", "preco_venda": 6.00, "estoque_atual": 0.0},
+        {"ean13": "00011", "descricao": "POLPA DE AMEIXA (500G)", "unidade": "PC", "preco_venda": 7.50, "estoque_atual": 0.0},
+        {"ean13": "00012", "descricao": "POLPA DE AÇAÍ (500G)", "unidade": "PC", "preco_venda": 10.90, "estoque_atual": 0.0},
+        {"ean13": "00003", "descricao": "POLPA DE CAJU (KG)", "unidade": "KG", "preco_venda": 9.50, "estoque_atual": 20.0},
+        {"ean13": "00014", "descricao": "POLPA DE CAJU (500G)", "unidade": "PC", "preco_venda": 4.75, "estoque_atual": 0.0},
+        {"ean13": "00004", "descricao": "POLPA DE CAJÁ (KG)", "unidade": "KG", "preco_venda": 15.00, "estoque_atual": 20.0},
+        {"ean13": "00013", "descricao": "POLPA DE CAJÁ (500G)", "unidade": "PC", "preco_venda": 7.50, "estoque_atual": 0.0},
+        {"ean13": "00015", "descricao": "POLPA DE CUPUAÇU (500G)", "unidade": "PC", "preco_venda": 8.00, "estoque_atual": 0.0},
+        {"ean13": "00005", "descricao": "POLPA DE GOIABA (KG)", "unidade": "KG", "preco_venda": 12.00, "estoque_atual": 16.0},
+        {"ean13": "00016", "descricao": "POLPA DE GOIABA (500G)", "unidade": "PC", "preco_venda": 6.00, "estoque_atual": 0.0},
+        {"ean13": "00006", "descricao": "POLPA DE GRAVIOLA (KG)", "unidade": "KG", "preco_venda": 15.00, "estoque_atual": 8.0},
+        {"ean13": "00017", "descricao": "POLPA DE GRAVIOLA (500G)", "unidade": "PC", "preco_venda": 7.50, "estoque_atual": 0.0},
+        {"ean13": "00007", "descricao": "POLPA DE MANGA (KG)", "unidade": "KG", "preco_venda": 11.00, "estoque_atual": 15.0},
+        {"ean13": "00018", "descricao": "POLPA DE MANGA (500G)", "unidade": "PC", "preco_venda": 5.50, "estoque_atual": 0.0},
+        {"ean13": "00008", "descricao": "POLPA DE MARACUJÁ (KG)", "unidade": "KG", "preco_venda": 22.00, "estoque_atual": 2.0},
+        {"ean13": "00019", "descricao": "POLPA DE MARACUJÁ (500G)", "unidade": "PC", "preco_venda": 11.00, "estoque_atual": 0.0},
+        {"ean13": "00021", "descricao": "POLPA DE MORANGO (500G)", "unidade": "PC", "preco_venda": 8.50, "estoque_atual": 0.0},
+        {"ean13": "00020", "descricao": "POLPA DE TAMARINDO (500G)", "unidade": "PC", "preco_venda": 6.50, "estoque_atual": 0.0},
+        {"ean13": "00022", "descricao": "POLPA DE UMBU (500G)", "unidade": "PC", "preco_venda": 6.50, "estoque_atual": 0.0}
     ]
     
-    for item in dados_pdf:
-        # Insere ou atualiza no Supabase
-        supabase.table("produtos").upsert(item).execute()
-    st.success("✅ Produtos do PDF importados com sucesso!")
+    sucesso = 0
+    erro = 0
+    for prod in lista_produtos:
+        try:
+            # Upsert garante que se o código existir, ele apenas atualiza
+            supabase.table("produtos").upsert(prod).execute()
+            sucesso += 1
+        except Exception as e:
+            erro += 1
+    
+    st.success(f"🚀 Importação concluída: {sucesso} produtos inseridos/atualizados!")
+    if erro > 0: st.warning(f"⚠️ {erro} produtos falharam na importação.")
 
-# --- DENTRO DO MENU 'IMPORTAR' ---
-if menu == f"📑 {T['import']}":
-    st.header("📑 Importação de Dados")
+# --- NA INTERFACE (ABA IMPORTAR) ---
+elif menu == f"📑 {T['import']}":
+    st.header(f"📑 {T['import']}")
+    st.subheader("Importar Catálogo Derlyana Alimentos")
+    st.write("Clique no botão abaixo para carregar todos os produtos do PDF automaticamente para o sistema.")
     
-    st.subheader("1. Importar Tabela 'Derlyana Alimentos'")
-    if st.button("🚀 Processar Dados do PDF Enviado"):
-        processar_importacao_pdf()
-        st.rerun()
-    
-    st.divider()
-    
-    st.subheader("2. Importação Manual via Planilha")
-    file = st.file_uploader("Suba um CSV com colunas: descricao, unidade, preco_venda, ean13", type=['csv'])
-    if file:
-        df_csv = pd.read_csv(file)
-        st.write("Prévia para conferência:", df_csv.head())
-        if st.button("Confirmar Importação em Massa"):
-            for _, row in df_csv.iterrows():
-                supabase.table("produtos").upsert(row.to_dict()).execute()
-            st.success("Importação concluída!")
-
-# --- DENTRO DO MENU 'ESTOQUE' (PARA ALTERAR) ---
-elif menu == f"📦 {T['estoque']}":
-    # ... (código anterior de listagem)
-    res = safe_query("produtos")
-    if res:
-        dfp = pd.DataFrame(res)
-        st.subheader("✏️ Alterar Produto Existente")
-        prod_sel = st.selectbox("Selecione o produto para editar", dfp['descricao'])
-        
-        # Filtra os dados do produto selecionado
-        dados_p = dfp[dfp['descricao'] == prod_sel].iloc[0]
-        
-        with st.form("edit_prod"):
-            nova_desc = st.text_input("Descrição", value=dados_p['descricao'])
-            novo_vlr = st.number_input("Valor de Venda", value=float(dados_p['preco_venda']))
-            novo_est = st.number_input("Estoque Atual", value=float(dados_p['estoque_atual']))
-            novo_ean = st.text_input("Código EAN-13", value=str(dados_p['ean13']))
-            
-            if st.form_submit_button("Atualizar Dados"):
-                supabase.table("produtos").update({
-                    "descricao": nova_desc,
-                    "preco_venda": novo_vlr,
-                    "estoque_atual": novo_est,
-                    "ean13": novo_ean
-                }).eq("id", dados_p['id']).execute()
-                st.success("Produto alterado!")
-                st.rerun()
+    if st.button("🚀 Executar Importação Completa"):
+        importar_todos_produtos_pdf()
