@@ -4,11 +4,11 @@ import pandas as pd
 from fpdf import FPDF
 from datetime import datetime, date
 
-# Tenta importar o Plotly, se falhar (por falta do requirements), o app não quebra
+# Tenta importar o Plotly para os Dashboards
 try:
     import plotly.express as px
     HAS_PLOTLY = True
-except ImportError:
+except:
     HAS_PLOTLY = False
 
 # 1. Conexão Segura
@@ -18,7 +18,7 @@ supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
 if 'carrinho' not in st.session_state: st.session_state.carrinho = []
 
-# --- FUNÇÃO DE IMPRESSÃO (ESTILO PEDIDO_1.PDF) ---
+# --- FUNÇÃO DE IMPRESSÃO ---
 def gerar_recibo_pdf(empresa, cliente, itens, condicao, vencimento, n_pedido, ajuste=0.0, obs="", vias=2):
     pdf = FPDF(format='A4')
     total_prod = sum(item['total'] for item in itens)
@@ -42,7 +42,6 @@ def gerar_recibo_pdf(empresa, cliente, itens, condicao, vencimento, n_pedido, aj
         pdf.set_font("Arial", "", 10)
         pdf.cell(70, 6, f"DATA: {datetime.now().strftime('%d/%m/%Y')}", ln=1, align="R")
         
-        # Tabela
         pdf.ln(2)
         pdf.set_fill_color(230, 230, 230); pdf.set_font("Arial", "B", 9)
         pdf.cell(85, 7, "Descricao", 1, 0, "L", True)
@@ -62,9 +61,11 @@ def gerar_recibo_pdf(empresa, cliente, itens, condicao, vencimento, n_pedido, aj
         pdf.set_font("Arial", "B", 10)
         pdf.cell(130, 6, f"Pagamento: {tp}", 0)
         pdf.cell(60, 6, f"Total Produtos: R$ {total_prod:.2f}", 0, ln=1, align="R")
+        
         pdf.set_font("Arial", "", 9)
         pdf.cell(130, 6, f"Obs.: {obs}", 0)
-        pdf.cell(60, 6, f"R$ {ajuste:.2f}", 0, ln=1, align="R")
+        pdf.cell(60, 6, f"Ajuste: R$ {ajuste:.2f}", 0, ln=1, align="R")
+        
         pdf.set_font("Arial", "B", 12)
         pdf.cell(190, 8, f"VALOR TOTAL: R$ {total_g:.2f}", 0, ln=1, align="R")
         
@@ -77,67 +78,43 @@ def gerar_recibo_pdf(empresa, cliente, itens, condicao, vencimento, n_pedido, aj
     if vias == 2: desenhar_via(148)
     return bytes(pdf.output())
 
-# --- INTERFACE PRINCIPAL ---
-st.set_page_config(page_title="JMQJR - Sistema Profissional", layout="wide")
+# --- INTERFACE ---
+st.set_page_config(page_title="SGV Profissional", layout="wide")
 
 if not st.session_state.get("autenticado"):
     st.title("🚀 SGV Profissional")
-    pwd = st.text_input("Senha", type="password")
-    if st.button("Entrar") and pwd == "Naksu@6026":
+    if st.text_input("Senha", type="password") == "Naksu@6026" and st.button("Entrar"):
         st.session_state.autenticado = True; st.rerun()
 else:
-    menu = st.sidebar.radio("Navegação", ["📊 Dashboards", "🛒 PDV", "💰 Financeiro", "📥 Reposição", "👥 Clientes", "📦 Estoque", "⚙️ Configurações"])
+    menu = st.sidebar.radio("Navegação", ["📊 Dashboards", "🛒 PDV", "💰 Financeiro", "👥 Clientes", "📦 Estoque", "⚙️ Configurações"])
 
-    # --- DASHBOARDS ---
+    # --- 📊 DASHBOARDS (BLINDADO) ---
     if menu == "📊 Dashboards":
-        st.header("📊 Painel de Vendas")
+        st.header("📊 Desempenho do Negócio")
         if HAS_PLOTLY:
             c1, c2, c3 = st.columns(3)
-            # Valores estáticos por enquanto, em breve puxaremos do histórico de pedidos
-            c1.metric("Vendas Hoje", "R$ 0,00")
-            c2.metric("Recebimentos Pendentes", "R$ 0,00")
-            c3.metric("Lucro Estimado", "R$ 0,00")
-            
-            df_demo = pd.DataFrame({"Data": ["01/03", "02/03", "03/03"], "Vendas": [100, 250, 180]})
-            fig = px.bar(df_demo, x="Data", y="Vendas", title="Vendas por Período")
-            st.plotly_chart(fig, use_container_width=True)
+            c1.metric("Vendas Totais", "R$ 0,00")
+            c2.metric("Clientes Ativos", "0")
+            c3.metric("Itens em Estoque", "0")
+            st.info("Gráficos aparecerão aqui assim que houver histórico de vendas.")
         else:
-            st.warning("Adicione 'plotly' ao seu requirements.txt para ver os gráficos.")
+            st.error("Instale 'plotly' para ver os gráficos.")
 
-    # --- FINANCEIRO ---
-    elif menu == "💰 Financeiro":
-        st.header("💰 Gestão Financeira")
-        t1, t2 = st.tabs(["📈 Contas a Receber (Clientes)", "📉 Contas a Pagar (Despesas)"])
-        with t1:
-            st.subheader("Pendências de Vendas À Prazo")
-            st.info("Aqui serão listadas as parcelas de clientes que ainda não pagaram.")
-        with t2:
-            st.subheader("Controle de Despesas")
-            with st.form("despesa"):
-                d = st.text_input("Descrição da Despesa")
-                v = st.number_input("Valor", min_value=0.0)
-                dt = st.date_input("Vencimento")
-                if st.form_submit_button("Lançar"):
-                    st.success("Lançado com sucesso!")
-
-    # --- PDV ---
+    # --- 🛒 PDV ---
     elif menu == "🛒 PDV":
         st.header("🛒 Novo Pedido")
-        # Busca segura (Evita erro se tabelas estiverem vazias)
         try:
-            clis_data = supabase.table("Clientes").select("nome_completo").execute().data or []
-            clis = [c['nome_completo'] for c in clis_data]
-            pros_data = supabase.table("produtos").select("*").execute().data or []
-            pros = {p['descricao']: p for p in pros_data}
-        except Exception as e:
-            st.error(f"Erro ao conectar com o banco: {e}")
-            clis, pros = [], {}
+            clis_r = supabase.table("Clientes").select("nome_completo").execute().data or []
+            pros_r = supabase.table("produtos").select("*").execute().data or []
+            clis = [c['nome_completo'] for c in clis_r]
+            pros = {p['descricao']: p for p in pros_r}
+        except: clis, pros = [], {}
 
-        cli_sel = st.selectbox("Selecione o Cliente", [""] + clis)
+        cli_sel = st.selectbox("Cliente", [""] + clis)
         st.divider()
         cp, cq, cb = st.columns([3, 1, 1])
         p_sel = cp.selectbox("Produto", [""] + list(pros.keys()))
-        q_val = cq.number_input("Qtd", min_value=0.1)
+        q_val = cq.number_input("Qtd", min_value=0.1, value=1.0)
         if cb.button("➕ Adicionar"):
             if p_sel:
                 p = pros[p_sel]
@@ -146,53 +123,102 @@ else:
 
         if st.session_state.carrinho:
             st.table(pd.DataFrame(st.session_state.carrinho))
+            if st.button("🗑️ Limpar Carrinho"): st.session_state.carrinho = []; st.rerun()
+            st.divider()
             f1, f2, f3, f4 = st.columns([2, 2, 1, 1])
             cond = f1.selectbox("Pagamento", ["À Vista", "À Prazo"])
             venc = f2.date_input("Vencimento") if cond == "À Prazo" else date.today()
-            ajust = f3.number_input("Ajuste (R$)", value=0.0)
-            vias = f4.radio("Vias", [1, 2], index=1)
-            obs = st.text_input("Observações")
+            ajust = f3.number_input("Ajuste R$ (+/-)", value=0.0)
+            vias_sel = f4.radio("Vias", [1, 2], index=1)
+            obs_txt = st.text_input("Observações (Taxas, descontos, etc)")
             
             if st.button("✅ FINALIZAR"):
-                # Busca Numero Pedido e Dados Empresa
+                # Busca numero do pedido e dados empresa
                 try:
-                    res_n = supabase.table("controle_pedidos").select("ultimo_numero").eq("id", 1).execute().data[0]
-                    novo_n = res_n['ultimo_numero'] + 1
-                    supabase.table("controle_pedidos").update({"ultimo_numero": novo_n}).eq("id", 1).execute()
-                    res_emp = supabase.table("config_empresa").select("*").eq("id", 1).execute().data
-                    emp_info = res_emp[0] if res_emp else {}
-                except: novo_n = 1; emp_info = {}
+                    res_n = supabase.table("controle_pedidos").select("ultimo_numero").eq("id", 1).execute().data
+                    n_ped = (res_n[0]['ultimo_numero'] + 1) if res_n else 1
+                    supabase.table("controle_pedidos").upsert({"id":1, "ultimo_numero": n_ped}).execute()
+                    res_e = supabase.table("config_empresa").select("*").eq("id", 1).execute().data
+                    emp_i = res_e[0] if res_e else {}
+                except: n_ped = 1; emp_i = {}
                 
-                pdf_out = gerar_recibo_pdf(emp_info, cli_sel, st.session_state.carrinho, cond, venc, novo_n, ajust, obs, vias)
-                st.download_button("📄 Imprimir Pedido", pdf_out, f"Pedido_{novo_n:04d}.pdf")
+                pdf = gerar_recibo_pdf(emp_i, cli_sel, st.session_state.carrinho, cond, venc, n_ped, ajust, obs_txt, vias_sel)
+                st.download_button("📄 Baixar Pedido", pdf, f"Pedido_{n_ped:04d}.pdf")
                 st.session_state.carrinho = []
 
-    # --- CONFIGURAÇÕES ---
-    elif menu == "⚙️ Configurações":
-        st.header("⚙️ Configurações da Empresa")
-        try:
-            res_emp = supabase.table("config_empresa").select("*").eq("id", 1).execute().data
-            emp_data = res_emp[0] if res_emp else {}
-        except: emp_data = {}
-
-        with st.form("cfg"):
-            n = st.text_input("Nome Empresa", value=emp_data.get('nome_empresa', ''))
-            e = st.text_input("Endereço", value=emp_data.get('endereco', ''))
-            t = st.text_input("Telefone", value=emp_data.get('telefone', ''))
-            c = st.text_input("CNPJ", value=emp_data.get('cnpj', ''))
-            if st.form_submit_button("Salvar"):
-                supabase.table("config_empresa").upsert({"id": 1, "nome_empresa": n, "endereco": e, "telefone": t, "cnpj": c}).execute()
-                st.success("Salvo!"); st.rerun()
-
-    # --- OUTRAS ABAS ---
+    # --- 👥 CLIENTES (CRUD TOTAL) ---
     elif menu == "👥 Clientes":
-        st.header("👥 Clientes")
-        with st.form("add_cli"):
-            nc, dc, ec, tc = st.text_input("Nome"), st.text_input("Doc"), st.text_input("Endereço"), st.text_input("Fone")
-            if st.form_submit_button("Cadastrar"):
-                supabase.table("Clientes").insert({"nome_completo":nc, "cpf_cnpj":dc, "endereco":ec, "telefone":tc}).execute()
-                st.rerun()
+        st.header("👥 Gestão de Clientes")
+        t1, t2 = st.tabs(["Lista e Exclusão", "Novo Cadastro"])
+        with t2:
+            with st.form("c_f"):
+                n, d, e, t = st.text_input("Nome"), st.text_input("CPF/CNPJ"), st.text_input("Endereço"), st.text_input("Fone")
+                if st.form_submit_button("Cadastrar"):
+                    supabase.table("Clientes").insert({"nome_completo":n,"cpf_cnpj":d,"endereco":e,"telefone":t}).execute()
+                    st.success("Salvo!"); st.rerun()
+        with t1:
+            res = supabase.table("Clientes").select("*").execute().data
+            if res:
+                df = pd.DataFrame(res)
+                st.dataframe(df, use_container_width=True)
+                sel = st.selectbox("Selecione para excluir", df['nome_completo'])
+                if st.button("🗑️ Excluir Cliente"):
+                    id_c = df[df['nome_completo'] == sel]['id'].values[0]
+                    supabase.table("Clientes").delete().eq("id", id_c).execute()
+                    st.rerun()
+            else: st.info("Nenhum cliente cadastrado.")
+
+    # --- 📦 ESTOQUE (CRUD TOTAL) ---
     elif menu == "📦 Estoque":
-        st.header("📦 Estoque")
-        res_p = supabase.table("produtos").select("*").execute().data or []
-        st.dataframe(pd.DataFrame(res_p), use_container_width=True)
+        st.header("📦 Gestão de Estoque")
+        t1, t2 = st.tabs(["Lista de Produtos", "Cadastrar Novo"])
+        with t2:
+            with st.form("p_f"):
+                desc, prc, und = st.text_input("Descrição"), st.number_input("Preço"), st.selectbox("Unid", ["KG", "UNI", "CX"])
+                if st.form_submit_button("Cadastrar"):
+                    supabase.table("produtos").insert({"descricao":desc,"preco_venda":prc,"unidade":und,"estoque_atual":0}).execute()
+                    st.success("Produto salvo!"); st.rerun()
+        with t1:
+            res = supabase.table("produtos").select("*").execute().data
+            if res:
+                df = pd.DataFrame(res)
+                st.dataframe(df, use_container_width=True)
+                sel_p = st.selectbox("Selecione para excluir", df['descricao'])
+                if st.button("🗑️ Excluir Produto"):
+                    id_p = df[df['descricao'] == sel_p]['id'].values[0]
+                    supabase.table("produtos").delete().eq("id", id_p).execute()
+                    st.rerun()
+            else: st.info("Nenhum produto em estoque.")
+
+    # --- ⚙️ CONFIGURAÇÕES (LOGO E REINÍCIO) ---
+    elif menu == "⚙️ Configurações":
+        st.header("⚙️ Configurações do Sistema")
+        try:
+            res_e = supabase.table("config_empresa").select("*").eq("id", 1).execute().data
+            emp_d = res_e[0] if res_e else {}
+        except: emp_d = {}
+
+        c1, c2 = st.columns(2)
+        with c1:
+            with st.form("cfg"):
+                nome = st.text_input("Nome Empresa", value=emp_d.get('nome_empresa',''))
+                ende = st.text_input("Endereço", value=emp_d.get('endereco',''))
+                fone = st.text_input("Fone", value=emp_d.get('telefone',''))
+                cnpj = st.text_input("CNPJ", value=emp_d.get('cnpj',''))
+                if st.form_submit_button("Salvar Dados"):
+                    supabase.table("config_empresa").upsert({"id":1, "nome_empresa":nome, "endereco":ende, "telefone":fone, "cnpj":cnpj}).execute()
+                    st.rerun()
+        with c2:
+            st.subheader("🖼️ Logomarca")
+            foto = st.file_uploader("Subir Logomarca (PNG/JPG)", type=['png','jpg'])
+            if foto: st.image(foto, width=200)
+            
+            st.divider()
+            st.subheader("🚨 Área de Perigo")
+            if st.button("🔄 Zerar Contador de Pedidos"):
+                supabase.table("controle_pedidos").update({"ultimo_numero": 0}).eq("id", 1).execute()
+                st.warning("Próximo pedido será o 0001.")
+
+    elif menu == "💰 Financeiro":
+        st.header("💰 Financeiro")
+        st.info("Funcionalidade em desenvolvimento para a versão 3.0 Pro.")
