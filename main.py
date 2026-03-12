@@ -1,126 +1,68 @@
 import streamlit as st
-from supabase import create_client
 import pandas as pd
-from fpdf import FPDF
-from datetime import datetime, date
-import requests # Novo: Para buscar o CEP
 
-# 1. CONEXÃO E DICIONÁRIO
-URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
-CHAVE_SUPABASE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c21pYXV2dmR5ZHhzaG56cmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTMzNjAsImV4cCI6MjA4ODMyOTM2MH0.Cu_AqQWMO7ptoYgWEU7bpFNEnzPLq7vL8SNDHPIe_-o"
-supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
+# Função para converter os dados brutos do PDF em uma lista para o Supabase
+def processar_importacao_pdf():
+    # Dados extraídos do seu PDF (Derlyana Alimentos)
+    dados_pdf = [
+        {"descricao": "CAJUÍNA 200 ML (24 UN)", "unidade": "CX", "preco_venda": 60.00, "estoque_atual": 30.0, "ean13": "00027"},
+        {"descricao": "CAJUINA 480 ML (12 UN)", "unidade": "PC", "preco_venda": 55.00, "estoque_atual": 0.0, "ean13": "00028"},
+        {"descricao": "POLPA DE ABACAXI", "unidade": "KG", "preco_venda": 14.00, "estoque_atual": 11.0, "ean13": "00001"},
+        {"descricao": "POLPA DE CAJU", "unidade": "KG", "preco_venda": 9.50, "estoque_atual": 20.0, "ean13": "00003"},
+        {"descricao": "POLPA DE CAJÁ", "unidade": "KG", "preco_venda": 15.00, "estoque_atual": 20.0, "ean13": "00004"},
+        {"descricao": "POLPA DE GRAVIOLA", "unidade": "KG", "preco_venda": 15.00, "estoque_atual": 8.0, "ean13": "00006"}
+    ]
+    
+    for item in dados_pdf:
+        # Insere ou atualiza no Supabase
+        supabase.table("produtos").upsert(item).execute()
+    st.success("✅ Produtos do PDF importados com sucesso!")
 
-texts = {
-    "Português": {"vendas": "Vendas", "estoque": "Estoque", "clientes": "Clientes", "config": "Configurações", "import": "Importar", "idioma": "Idioma"},
-    "English": {"vendas": "Sales", "estoque": "Inventory", "clientes": "Customers", "config": "Settings", "import": "Import Data", "idioma": "Language"},
-    "Español": {"vendas": "Ventas", "estoque": "Inventario", "clientes": "Clientes", "config": "Ajustes", "import": "Importar", "idioma": "Idioma"}
-}
+# --- DENTRO DO MENU 'IMPORTAR' ---
+if menu == f"📑 {T['import']}":
+    st.header("📑 Importação de Dados")
+    
+    st.subheader("1. Importar Tabela 'Derlyana Alimentos'")
+    if st.button("🚀 Processar Dados do PDF Enviado"):
+        processar_importacao_pdf()
+        st.rerun()
+    
+    st.divider()
+    
+    st.subheader("2. Importação Manual via Planilha")
+    file = st.file_uploader("Suba um CSV com colunas: descricao, unidade, preco_venda, ean13", type=['csv'])
+    if file:
+        df_csv = pd.read_csv(file)
+        st.write("Prévia para conferência:", df_csv.head())
+        if st.button("Confirmar Importação em Massa"):
+            for _, row in df_csv.iterrows():
+                supabase.table("produtos").upsert(row.to_dict()).execute()
+            st.success("Importação concluída!")
 
-if 'lang' not in st.session_state: st.session_state.lang = "Português"
-T = texts[st.session_state.lang]
-
-# 2. FUNÇÕES DE BLINDAGEM E UTILITÁRIOS
-def safe_query(table_name):
-    try:
-        res = supabase.table(table_name).select("*").execute()
-        return res.data if res.data else []
-    except:
-        return []
-
-def buscar_cep(cep):
-    cep = cep.replace("-", "").replace(".", "")
-    if len(cep) == 8:
-        r = requests.get(f"https://viacep.com.br/ws/{cep}/json/")
-        return r.json() if r.status_code == 200 else {}
-    return {}
-
-# --- INTERFACE ---
-st.set_page_config(page_title="SGV Evolution Pro", layout="wide")
-
-# Sidebar - Seletor de Idioma Visível
-with st.sidebar:
-    st.title("JMQJR Evolution")
-    st.session_state.lang = st.selectbox(f"🌐 {T['idioma']}", list(texts.keys()), index=list(texts.keys()).index(st.session_state.lang))
-    menu = st.radio("Menu", [f"🛒 {T['vendas']}", f"📦 {T['estoque']}", f"👥 {T['clientes']}", f"📑 {T['import']}", f"⚙️ {T['config']}"])
-
-if not st.session_state.get("autenticado"):
-    st.title("🔒 Login")
-    if st.text_input("Senha", type="password") == "Naksu@6026" and st.button("Acessar"):
-        st.session_state.autenticado = True; st.rerun()
-else:
-    # --- 👥 CLIENTES (COM CEP AUTOMÁTICO) ---
-    if menu == f"👥 {T['clientes']}":
-        st.header(f"👥 {T['clientes']}")
-        t1, t2 = st.tabs(["📋 Lista/Editar", "➕ Novo"])
-        with t2:
-            with st.form("cli_new"):
-                c1, c2 = st.columns(2)
-                n = c1.text_input("Nome")
-                d = c2.text_input("CPF/CNPJ")
-                cp = c1.text_input("CEP (Aperte TAB para buscar)")
-                
-                # Lógica simples de CEP: O usuário clica no botão para preencher
-                btn_cep = st.form_submit_button("🔍 Validar CEP")
-                dados_cep = buscar_cep(cp) if btn_cep else {}
-                
-                ru = c2.text_input("Rua", value=dados_cep.get('logradouro', ''))
-                ba = c1.text_input("Bairro", value=dados_cep.get('bairro', ''))
-                ci = c2.text_input("Cidade", value=dados_cep.get('localidade', ''))
-                uf = c1.text_input("UF", value=dados_cep.get('uf', ''))
-                te = c2.text_input("Telefone")
-                if st.form_submit_button("💾 Salvar Cliente"):
-                    supabase.table("Clientes").insert({"nome_completo":n,"cpf_cnpj":d,"endereco":ru,"bairro":ba,"cep":cp,"cidade":ci,"uf":uf,"telefone":te}).execute()
-                    st.success("Salvo!"); st.rerun()
-
-    # --- 🛒 VENDAS (TELA BRANCA BLINDADA) ---
-    elif menu == f"🛒 {T['vendas']}":
-        st.header(f"🛒 {T['vendas']}")
-        # Busca segura de clientes e produtos
-        clis_raw = safe_query("Clientes")
-        pros_raw = safe_query("produtos")
+# --- DENTRO DO MENU 'ESTOQUE' (PARA ALTERAR) ---
+elif menu == f"📦 {T['estoque']}":
+    # ... (código anterior de listagem)
+    res = safe_query("produtos")
+    if res:
+        dfp = pd.DataFrame(res)
+        st.subheader("✏️ Alterar Produto Existente")
+        prod_sel = st.selectbox("Selecione o produto para editar", dfp['descricao'])
         
-        if not pros_raw:
-            st.warning("⚠️ Cadastre produtos no estoque antes de vender.")
-        else:
-            clis_nomes = [c['nome_completo'] for c in clis_raw] if clis_raw else ["Consumidor Final"]
-            cli_sel = st.selectbox("Selecione o Cliente", clis_nomes)
+        # Filtra os dados do produto selecionado
+        dados_p = dfp[dfp['descricao'] == prod_sel].iloc[0]
+        
+        with st.form("edit_prod"):
+            nova_desc = st.text_input("Descrição", value=dados_p['descricao'])
+            novo_vlr = st.number_input("Valor de Venda", value=float(dados_p['preco_venda']))
+            novo_est = st.number_input("Estoque Atual", value=float(dados_p['estoque_atual']))
+            novo_ean = st.text_input("Código EAN-13", value=str(dados_p['ean13']))
             
-            # Restante da lógica do PDV... (Carrinho, PDF, etc.)
-            st.info("Sistema de vendas ativo. Adicione itens do estoque.")
-
-    # --- 📑 IMPORTAÇÃO (TELA BRANCA BLINDADA) ---
-    elif menu == f"📑 {T['import']}":
-        st.header(f"📑 {T['import']}")
-        st.write("Suba sua planilha de Clientes ou Produtos.")
-        tipo = st.radio("Tipo de dado", ["Produtos", "Clientes"])
-        file = st.file_uploader("Arquivo CSV ou Excel", type=['csv', 'xlsx'])
-        
-        if file:
-            try:
-                df = pd.read_csv(file) if file.name.endswith('.csv') else pd.read_excel(file)
-                st.dataframe(df.head(10)) # Mostra prévia
-                if st.button("🚀 Iniciar Importação"):
-                    st.success("Processando dados...")
-            except Exception as e:
-                st.error(f"Erro ao ler arquivo: {e}")
-
-    # --- ⚙️ CONFIGURAÇÕES (UPLOAD E LOGO) ---
-    elif menu == f"⚙️ {T['config']}":
-        st.header(f"⚙️ {T['config']}")
-        res_e = safe_query("config_empresa")
-        emp_d = res_e[0] if res_e else {}
-        
-        c1, c2 = st.columns(2)
-        with c1:
-            with st.form("cfg"):
-                ne = st.text_input("Empresa", value=emp_d.get('nome_empresa',''))
-                if st.form_submit_button("Salvar"):
-                    supabase.table("config_empresa").upsert({"id":1, "nome_empresa":ne}).execute()
-                    st.rerun()
-        with c2:
-            st.subheader("🖼️ Logomarca")
-            if emp_d.get('logo_url'): st.image(emp_d['logo_url'], width=150)
-            img = st.file_uploader("Trocar Logo", type=['png', 'jpg'])
-            if img and st.button("Upload"):
-                # Lógica de upload enviando para o bucket 'logos'
-                st.success("Logo enviada!")
+            if st.form_submit_button("Atualizar Dados"):
+                supabase.table("produtos").update({
+                    "descricao": nova_desc,
+                    "preco_venda": novo_vlr,
+                    "estoque_atual": novo_est,
+                    "ean13": novo_ean
+                }).eq("id", dados_p['id']).execute()
+                st.success("Produto alterado!")
+                st.rerun()
