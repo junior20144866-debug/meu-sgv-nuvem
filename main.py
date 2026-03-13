@@ -3,121 +3,112 @@ from supabase import create_client
 import pandas as pd
 import time
 
-# --- 1. CONFIGURAÇÃO E CONEXÃO ---
+# --- 1. CONFIGURAÇÃO ---
 st.set_page_config(page_title="SGV Evolution Pro", layout="wide")
-
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c21pYXV2dmR5ZHhzaG56cmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTMzNjAsImV4cCI6MjA4ODMyOTM2MH0.Cu_AqQWMO7ptoYgWEU7bpFNEnzPLq7vL8SNDHPIe_-o"
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
-# --- 2. SISTEMA DE IDIOMAS ---
+# --- 2. IDIOMAS ---
 texts = {
-    "Português": {"vendas": "Vendas", "estoque": "Estoque", "clientes": "Clientes", "import": "Importar Dados", "idioma": "Idioma", "config": "Configurações"},
-    "English": {"vendas": "Sales", "estoque": "Inventory", "clientes": "Customers", "import": "Import Data", "idioma": "Language", "config": "Settings"},
-    "Español": {"vendas": "Ventas", "estoque": "Inventario", "clientes": "Clientes", "import": "Importar", "idioma": "Idioma", "config": "Ajustes"}
+    "Português": {"vendas": "Vendas", "estoque": "Estoque", "clientes": "Clientes", "import": "Importar Dados", "config": "Configurações"},
+    "English": {"vendas": "Sales", "estoque": "Inventory", "clientes": "Customers", "import": "Import Data", "config": "Settings"}
 }
 if 'lang' not in st.session_state: st.session_state.lang = "Português"
 T = texts[st.session_state.lang]
 
-# --- 3. FUNÇÕES DE APOIO ---
+# --- 3. FUNÇÕES UTILITÁRIAS ---
 def formato_br(valor):
     try: return f"{float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except: return "0,00"
 
 def mapear_colunas_dinamico(df, destino):
-    # Sinônimos baseados nos arquivos reais que você enviou
     if destino == "produtos":
         referencias = {
             "ean13": ["codigo", "referencia", "ean", "ean13", "cod"],
             "descricao": ["descricao", "nome", "produto", "item"],
             "preco_venda": ["p_venda", "preco", "valor", "venda"],
-            "unidade": ["unidade", "un", "unid"],
-            "estoque_atual": ["quant_atua", "estoque", "quantidade"]
+            "unidade": ["unidade", "un", "unid"]
         }
     else: # Clientes
         referencias = {
             "nome_completo": ["nom", "nome", "cliente", "razao social"],
             "cpf_cnpj": ["cgc", "cpf", "cnpj", "documento"],
-            "telefone": ["tel1", "telefone", "fone", "celular"],
-            "cidade": ["cid", "cidade", "municipio"],
-            "uf": ["est", "uf", "estado"],
-            "cep": ["cep", "postal"]
+            "telefone": ["tel1", "telefone", "fone"],
+            "cidade": ["cid", "cidade"]
         }
-    
-    mapeado = {}
-    for alvo, lista_sinonimos in referencias.items():
-        for col_original in df.columns:
-            if str(col_original).lower().strip() in lista_sinonimos:
-                mapeado[col_original] = alvo
-                break
+    mapeado = {col: alvo for alvo, lista in referencias.items() for col in df.columns if str(col).lower().strip() in lista}
     return mapeado
 
-# --- 4. FLUXO DE ACESSO ---
+# --- 4. INTERFACE ---
 if not st.session_state.get("autenticado"):
-    st.title("🔒 Login SGV Evolution")
+    st.title("🔒 Login")
     if st.text_input("Senha", type="password") == "Naksu@6026" and st.button("Acessar"):
         st.session_state.autenticado = True; st.rerun()
 else:
-    with st.sidebar:
-        st.title("JMQJR Evolution")
-        st.session_state.lang = st.selectbox(f"🌐 {T['idioma']}", list(texts.keys()))
-        menu = st.radio("Navegação", [f"🛒 {T['vendas']}", f"📦 {T['estoque']}", f"👥 {T['clientes']}", f"📑 {T['import']}", f"⚙️ {T['config']}"])
+    menu = st.sidebar.radio("Navegação", [f"🛒 {T['vendas']}", f"📦 {T['estoque']}", f"👥 {T['clientes']}", f"📑 {T['import']}", f"⚙️ {T['config']}"])
 
-    # --- ABA IMPORTAR (CORRIGIDA) ---
-    if menu == f"📑 {T['import']}":
-        st.header("📑 Importação Inteligente")
-        destino = st.selectbox("Destino da Planilha", ["produtos", "Clientes"])
-        arquivo = st.file_uploader("Suba o arquivo EXCEL", type=["xlsx", "csv"])
-        
-        if arquivo:
-            try:
-                df = pd.read_excel(arquivo, engine='openpyxl') if arquivo.name.endswith('xlsx') else pd.read_csv(arquivo)
-                mapa = mapear_colunas_dinamico(df, destino)
-                
-                if mapa:
-                    df_final = df[list(mapa.keys())].rename(columns=mapa)
-                    st.success(f"✅ Identificamos {len(mapa)} colunas para {destino}")
-                    st.dataframe(df_final.head())
-                    
-                    if st.button(f"🚀 Importar para {destino}"):
-                        with st.spinner("Processando banco de dados..."):
-                            for _, row in df_final.iterrows():
-                                dados = {k: v for k, v in row.to_dict().items() if pd.notnull(v)}
-                                supabase.table(destino).upsert(dados).execute()
-                        st.success("Importação concluída!"); st.balloons()
-                else:
-                    st.error("⚠️ As colunas deste arquivo não batem com o destino selecionado.")
-            except Exception as e: st.error(f"Erro: {e}")
-
-    # --- ABA ESTOQUE ---
-    elif menu == f"📦 {T['estoque']}":
+    # --- ESTOQUE (COM GESTÃO MANUAL DE VOLTA) ---
+    if menu == f"📦 {T['estoque']}":
         st.header("📦 Gestão de Estoque")
-        res = supabase.table("produtos").select("*").execute().data
+        
+        # Botões de Ação
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1.expander("➕ Cadastrar Novo Produto"):
+            with st.form("novo_p", clear_on_submit=True):
+                d = st.text_input("Descrição")
+                e = st.text_input("EAN/Código")
+                p = st.number_input("Preço", min_value=0.0)
+                if st.form_submit_button("Salvar"):
+                    supabase.table("produtos").insert({"descricao": d, "ean13": e, "preco_venda": p}).execute()
+                    st.success("Produto inserido!"); time.sleep(1); st.rerun()
+
+        # Listagem
+        res = supabase.table("produtos").select("*").order("descricao").execute().data
         if res:
-            df_v = pd.DataFrame(res)
-            if 'preco_venda' in df_v.columns: df_v['Valor'] = df_v['preco_venda'].apply(formato_br)
-            cols = [c for c in ['ean13', 'descricao', 'unidade', 'Valor'] if c in df_v.columns]
-            st.dataframe(df_v[cols], use_container_width=True)
+            df_p = pd.DataFrame(res)
+            if 'preco_venda' in df_p.columns: df_p['Preço (R$)'] = df_p['preco_venda'].apply(formato_br)
+            st.dataframe(df_p[['ean13', 'descricao', 'Preço (R$)']], use_container_width=True)
         else: st.info("Estoque vazio.")
 
-    # --- ABA CLIENTES ---
+    # --- CLIENTES ---
     elif menu == f"👥 {T['clientes']}":
-        st.header("👥 Clientes")
-        res = supabase.table("Clientes").select("*").execute().data
+        st.header("👥 Cadastro de Clientes")
+        res = supabase.table("Clientes").select("*").order("nome_completo").execute().data
         if res: st.dataframe(pd.DataFrame(res), use_container_width=True)
-        else: st.info("Nenhum cliente cadastrado.")
+        else: st.info("Nenhum cliente.")
 
-    # --- ABA CONFIGURAÇÕES (LIBERDADE DE DADOS) ---
-    elif menu == f"⚙️ {T['config']}":
-        st.header("⚙️ Controle do Sistema")
-        st.warning("⚠️ CUIDADO: Estas ações não podem ser desfeitas.")
+    # --- IMPORTAÇÃO (BLINDADA PARA IMPORTAR TODOS) ---
+    elif menu == f"📑 {T['import']}":
+        st.header("📑 Importação em Massa")
+        destino = st.selectbox("Destino", ["produtos", "Clientes"])
+        arquivo = st.file_uploader("Arquivo Excel", type=["xlsx", "csv"])
         
-        tab_limpar = st.selectbox("Escolha uma tabela para ZERAR (Apagar tudo)", ["Nenhuma", "produtos", "Clientes"])
-        if tab_limpar != "Nenhuma":
-            if st.button(f"🔥 APAGAR TODOS OS DADOS DE {tab_limpar.upper()}"):
-                # No Supabase, para apagar tudo, deletamos onde o ID é maior que 0
-                supabase.table(tab_limpar).delete().neq("id", -1).execute()
-                st.success(f"Tabela {tab_limpar} zerada!"); time.sleep(1); st.rerun()
+        if arquivo:
+            df = pd.read_excel(arquivo) if arquivo.name.endswith('xlsx') else pd.read_csv(arquivo)
+            mapa = mapear_colunas_dinamico(df, destino)
+            if mapa:
+                df_final = df[list(mapa.keys())].rename(columns=mapa)
+                st.write("Prévia dos dados:")
+                st.dataframe(df_final.head())
+                
+                if st.button("🚀 Iniciar Importação Total"):
+                    progresso = st.progress(0)
+                    linhas = df_final.to_dict(orient='records')
+                    for i, linha in enumerate(linhas):
+                        # Remove campos vazios para não bugar o banco
+                        dados = {k: str(v) for k, v in linha.items() if pd.notnull(v)}
+                        supabase.table(destino).insert(dados).execute()
+                        progresso.progress((i + 1) / len(linhas))
+                    st.success(f"✅ {len(linhas)} registros importados!"); st.balloons()
+            else: st.error("Colunas não compatíveis.")
 
-        if st.button("🚪 Sair do Sistema"):
+    # --- CONFIGURAÇÕES ---
+    elif menu == f"⚙️ {T['config']}":
+        st.header("⚙️ Configurações")
+        if st.button("🔥 ZERAR TUDO (CUIDADO)"):
+            supabase.table("produtos").delete().neq("id", -1).execute()
+            supabase.table("Clientes").delete().neq("id", -1).execute()
+            st.success("Sistema limpo!"); time.sleep(1); st.rerun()
+        if st.button("🚪 Sair"):
             st.session_state.autenticado = False; st.rerun()
