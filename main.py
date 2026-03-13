@@ -19,7 +19,7 @@ texts = {
 if 'lang' not in st.session_state: st.session_state.lang = "Português"
 T = texts[st.session_state.lang]
 
-# --- 3. FUNÇÕES (Formatacao segura) ---
+# --- 3. FUNÇÕES ---
 def formato_br(valor):
     try: return f"{float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     except: return "0,00"
@@ -55,7 +55,7 @@ else:
         if escolha_lang != st.session_state.lang:
             st.session_state.lang = escolha_lang
             st.rerun()
-        menu = st.sidebar.radio("Navegação", [f"🛒 {T['vendas']}", f"📦 {T['estoque']}", f"👥 {T['clientes']}", f"📑 {T['import']}", f"⚙️ {T['config']}"])
+        menu = st.radio("Navegação", [f"🛒 {T['vendas']}", f"📦 {T['estoque']}", f"👥 {T['clientes']}", f"📑 {T['import']}", f"⚙️ {T['config']}"])
 
     # --- ABA IMPORTAR ---
     if menu == f"📑 {T['import']}":
@@ -64,7 +64,7 @@ else:
         arquivo = st.file_uploader("Suba o arquivo Excel ou CSV", type=["xlsx", "csv"])
         if arquivo:
             try:
-                # Tenta ler Excel (precisa do openpyxl no requirements.txt)
+                # engine='openpyxl' é essencial para .xlsx
                 df = pd.read_excel(arquivo, engine='openpyxl') if arquivo.name.endswith('xlsx') else pd.read_csv(arquivo)
                 mapa = mapear_colunas(df)
                 if mapa:
@@ -75,23 +75,43 @@ else:
                         for _, row in df_final.iterrows():
                             supabase.table(tipo_db).upsert(row.to_dict()).execute()
                         st.success("Dados importados!"); st.balloons()
-                else: st.error("Colunas não identificadas no seu arquivo.")
+                        time.sleep(1)
+                        st.rerun()
+                else: st.error("Colunas não identificadas.")
             except Exception as e:
-                st.error(f"Erro ao ler arquivo: Certifique-se de ter o arquivo 'requirements.txt' com 'openpyxl'. Erro: {e}")
+                st.error(f"Erro: {e}. Verifique se o arquivo 'requirements.txt' contém 'openpyxl'.")
 
-    # --- ABA ESTOQUE (Blindada contra erro de coluna) ---
+    # --- ABA ESTOQUE (BLINDADA) ---
     elif menu == f"📦 {T['estoque']}":
         st.header("📦 Estoque")
-        res = supabase.table("produtos").select("*").execute().data
-        if res:
-            df_v = pd.DataFrame(res)
-            # Criamos a coluna formatada 'Preço (R$)' sem apagar a original
-            if 'preco_venda' in df_v.columns:
-                df_v['Preço (R$)'] = df_v['preco_venda'].apply(formato_br)
-            
-            # Exibimos apenas as colunas que EXISTIREM para não dar KeyError
-            colunas_existentes = [c for c in ['ean13', 'descricao', 'Preço (R$)'] if c in df_v.columns]
-            st.dataframe(df_v[colunas_existentes], use_container_width=True)
-        else: st.info("Estoque vazio.")
+        try:
+            res = supabase.table("produtos").select("*").execute().data
+            if res:
+                df_v = pd.DataFrame(res)
+                # Formata apenas se a coluna preco_venda existir
+                if 'preco_venda' in df_v.columns:
+                    df_v['Valor'] = df_v['preco_venda'].apply(formato_br)
+                
+                # Lista de colunas que queremos mostrar, apenas se existirem no DataFrame
+                cols_para_exibir = [c for c in ['ean13', 'descricao', 'unidade', 'Valor'] if c in df_v.columns]
+                st.dataframe(df_v[cols_para_exibir], use_container_width=True)
+            else:
+                st.info("Estoque vazio.")
+        except Exception as e:
+            st.error(f"Erro ao carregar dados: {e}")
 
-    # ... (outras abas seguem a mesma lógica)
+    # --- ABA CLIENTES ---
+    elif menu == f"👥 {T['clientes']}":
+        st.header("👥 Clientes")
+        try:
+            res_c = supabase.table("Clientes").select("*").execute().data
+            if res_c: st.dataframe(pd.DataFrame(res_c), use_container_width=True)
+            else: st.info("Nenhum cliente cadastrado.")
+        except: st.error("Erro ao acessar tabela de Clientes.")
+
+    # --- ABA CONFIG ---
+    elif menu == f"⚙️ {T['config']}":
+        st.header("⚙️ Configurações")
+        if st.button("Sair"):
+            st.session_state.autenticado = False
+            st.rerun()
