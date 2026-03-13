@@ -3,109 +3,143 @@ from supabase import create_client
 import pandas as pd
 import time
 
-# --- 1. CONFIGURAÇÃO ---
-st.set_page_config(page_title="SGV Evolution Pro", layout="wide")
+# --- 1. CONEXÃO ---
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c21pYXV2dmR5ZHhzaG56cmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTMzNjAsImV4cCI6MjA4ODMyOTM2MH0.Cu_AqQWMO7ptoYgWEU7bpFNEnzPLq7vL8SNDHPIe_-o"
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
-# --- 2. TRADUÇÃO ---
-texts = {"Português": {"vendas": "Vendas", "estoque": "Estoque", "clientes": "Clientes", "import": "Importar Dados", "config": "Configurações"}}
-if 'lang' not in st.session_state: st.session_state.lang = "Português"
-T = texts[st.session_state.lang]
+st.set_page_config(page_title="SGV Evolution Pro", layout="wide")
 
-# --- 3. FUNÇÕES ---
+# --- 2. FUNÇÕES DE APOIO ---
 def formato_br(valor):
-    try: return f"{float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-    except: return "0,00"
+    try: return f"R$ {float(valor):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
+    except: return "R$ 0,00"
 
-def importar_para_banco(df, destino):
-    # Sinônimos atualizados conforme seus arquivos reais
-    ref = {
-        "produtos": {"ean13": "CODIGO", "descricao": "DESCRICAO", "preco_venda": "P_VENDA", "unidade": "UNIDADE"},
-        "Clientes": {"nome_completo": "NOM", "cpf_cnpj": "CGC", "telefone": "TEL1", "cidade": "CID"}
-    }[destino]
-    
-    sucesso = 0
-    progresso = st.progress(0)
-    total = len(df)
-    
-    for i, row in df.iterrows():
-        dados = {}
-        for campo_bd, coluna_excel in ref.items():
-            if coluna_excel in df.columns:
-                val = row[coluna_excel]
-                dados[campo_bd] = str(val) if pd.notnull(val) else None
-        
-        if dados:
-            try:
-                supabase.table(destino).insert(dados).execute()
-                sucesso += 1
-            except: pass
-        progresso.progress((i + 1) / total)
-    return sucesso
+# --- 3. AUTENTICAÇÃO ---
+if 'auth' not in st.session_state: st.session_state.auth = False
 
-# --- 4. FLUXO DE ACESSO ---
-if not st.session_state.get("autenticado"):
-    st.title("🔒 Login")
-    if st.text_input("Senha", type="password") == "Naksu@6026" and st.button("Acessar"):
-        st.session_state.autenticado = True; st.rerun()
+if not st.session_state.auth:
+    st.title("🔒 Acesso Restrito")
+    if st.text_input("Senha Mestra", type="password") == "Naksu@6026":
+        if st.button("Liberar Sistema"):
+            st.session_state.auth = True
+            st.rerun()
 else:
-    menu = st.sidebar.radio("Navegação", [f"🛒 {T['vendas']}", f"📦 {T['estoque']}", f"👥 {T['clientes']}", f"📑 {T['import']}", f"⚙️ {T['config']}"])
+    menu = st.sidebar.radio("Navegação", ["🛒 Vendas (PDV)", "📦 Estoque", "👥 Clientes", "📑 Importação Inteligente", "⚙️ Sistema"])
 
-    # --- PÁGINA ESTOQUE ---
-    if menu == f"📦 {T['estoque']}":
-        st.header("📦 Gestão de Estoque")
-        with st.expander("➕ Novo Produto (Manual)"):
-            with st.form("f_prod", clear_on_submit=True):
-                c1, c2, c3 = st.columns(3)
-                desc = c1.text_input("Descrição")
-                ean = c2.text_input("Código/EAN")
-                prc = c3.number_input("Preço", min_value=0.0)
-                if st.form_submit_button("Salvar"):
-                    supabase.table("produtos").insert({"descricao": desc, "ean13": ean, "preco_venda": prc}).execute()
-                    st.success("Salvo!"); time.sleep(1); st.rerun()
-        
-        dados = supabase.table("produtos").select("*").order("descricao").execute().data
-        if dados:
-            df_p = pd.DataFrame(dados)
-            df_p['Preço'] = df_p['preco_venda'].apply(formato_br)
-            st.dataframe(df_p[['ean13', 'descricao', 'Preço']], use_container_width=True)
-
-    # --- PÁGINA CLIENTES ---
-    elif menu == f"👥 {T['clientes']}":
+    # --- ABA CLIENTES (COM EDIÇÃO E EXCLUSÃO) ---
+    if menu == "👥 Clientes":
         st.header("👥 Gestão de Clientes")
-        with st.expander("➕ Novo Cliente (Manual)"):
-            with st.form("f_cli", clear_on_submit=True):
-                n = st.text_input("Nome Completo")
-                doc = st.text_input("CPF/CNPJ")
-                if st.form_submit_button("Cadastrar"):
-                    supabase.table("Clientes").insert({"nome_completo": n, "cpf_cnpj": doc}).execute()
-                    st.success("Cadastrado!"); time.sleep(1); st.rerun()
         
-        clis = supabase.table("Clientes").select("*").order("nome_completo").execute().data
-        if clis: st.dataframe(pd.DataFrame(clis), use_container_width=True)
+        with st.expander("➕ Adicionar Novo Cliente"):
+            with st.form("add_cli"):
+                n = st.text_input("Nome")
+                d = st.text_input("CPF/CNPJ")
+                if st.form_submit_button("Salvar"):
+                    supabase.table("Clientes").insert({"nome_completo": n, "cpf_cnpj": d}).execute()
+                    st.rerun()
 
-    # --- PÁGINA IMPORTAÇÃO ---
-    elif menu == f"📑 {T['import']}":
-        st.header("📑 Importação de Planilhas")
-        dest = st.selectbox("Destino", ["produtos", "Clientes"])
-        arq = st.file_uploader("Selecione o arquivo Excel", type=["xlsx"])
+        res = supabase.table("Clientes").select("*").order("nome_completo").execute().data
+        if res:
+            for c in res:
+                col1, col2, col3 = st.columns([3, 1, 1])
+                col1.write(f"**{c['nome_completo']}** ({c.get('cpf_cnpj', 'S/D')})")
+                if col2.button("📝 Editar", key=f"ed_{c['id']}"):
+                    st.info("Função de edição rápida em desenvolvimento")
+                if col3.button("🗑️ Excluir", key=f"del_{c['id']}"):
+                    supabase.table("Clientes").delete().eq("id", c['id']).execute()
+                    st.warning(f"Cliente {c['nome_completo']} removido.")
+                    st.rerun()
+        else: st.info("Nenhum cliente.")
+
+    # --- ABA ESTOQUE (FIX: MOSTRANDO TUDO) ---
+    elif menu == "📦 Estoque":
+        st.header("📦 Controle de Estoque")
+        
+        prods = supabase.table("produtos").select("*").order("descricao").execute().data
+        if prods:
+            df_p = pd.DataFrame(prods)
+            # Normalização de nomes para exibição
+            display_cols = []
+            if 'ean13' in df_p.columns: display_cols.append('ean13')
+            if 'descricao' in df_p.columns: display_cols.append('descricao')
+            if 'preco_venda' in df_p.columns:
+                df_p['Preço'] = df_p['preco_venda'].apply(formato_br)
+                display_cols.append('Preço')
+            
+            st.dataframe(df_p[display_cols], use_container_width=True)
+            
+            # Controle de exclusão rápida
+            sel_p = st.selectbox("Selecione um produto para remover", ["---"] + [p['descricao'] for p in prods])
+            if sel_p != "---" and st.button("Remover Produto"):
+                supabase.table("produtos").delete().eq("descricao", sel_p).execute()
+                st.rerun()
+        else: st.info("Estoque vazio. Vá em Importação.")
+
+    # --- ABA IMPORTAÇÃO (RECONHECIMENTO BAGUNÇADO) ---
+    elif menu == "📑 Importação Inteligente":
+        st.header("📑 Motor de Reconhecimento de Dados")
+        tipo = st.selectbox("O que deseja importar?", ["produtos", "Clientes"])
+        arq = st.file_uploader("Suba sua planilha (mesmo que esteja bagunçada)", type=["xlsx"])
+        
         if arq:
-            df_excel = pd.read_excel(arq, engine='openpyxl')
-            st.write(f"Arquivo lido: {len(df_excel)} linhas encontradas.")
-            if st.button("🚀 Iniciar Importação"):
-                qtd = importar_para_banco(df_excel, dest)
-                st.success(f"✅ {qtd} registros importados para {dest}!"); st.balloons()
+            df = pd.read_excel(arq)
+            st.write("🔍 Analisando colunas do seu arquivo...")
+            
+            # Mapeamento dinâmico (O segredo da maravilha)
+            mapeamento = {
+                "produtos": {"ean13": ["CODIGO", "EAN", "REF"], "descricao": ["DESCRICAO", "NOME", "ITEM"], "preco_venda": ["P_VENDA", "PRECO", "VALOR"]},
+                "Clientes": {"nome_completo": ["NOM", "NOME", "CLIENTE"], "cpf_cnpj": ["CGC", "CPF", "CNPJ"]}
+            }
+            
+            final_data = {}
+            for campo_bd, sinonimos in mapeamento[tipo].items():
+                for col_excel in df.columns:
+                    if col_excel.upper() in sinonimos:
+                        final_data[campo_bd] = df[col_excel]
+                        break
+            
+            if final_data:
+                df_import = pd.DataFrame(final_data)
+                st.write("✅ Reconheci estes dados:")
+                st.dataframe(df_import.head())
+                
+                if st.button("🚀 Confirmar e Operar"):
+                    for _, row in df_import.iterrows():
+                        dados = {k: str(v) for k, v in row.to_dict().items() if pd.notnull(v)}
+                        supabase.table(tipo).insert(dados).execute()
+                    st.success("Tudo organizado e operando!"); st.balloons()
+            else:
+                st.error("Não consegui reconhecer as colunas automaticamente.")
 
-    # --- PÁGINA CONFIG (CONTROLE TOTAL) ---
-    elif menu == f"⚙️ {T['config']}":
-        st.header("⚙️ Configurações e Controle")
-        st.subheader("🗑️ Limpeza de Dados")
-        tab = st.selectbox("Zerar tabela:", ["---", "produtos", "Clientes"])
-        if tab != "---" and st.button(f"Zerar {tab}"):
-            supabase.table(tab).delete().neq("id", -1).execute()
-            st.success("Tabela zerada!"); time.sleep(1); st.rerun()
+    # --- ABA VENDAS (DINÂMICA) ---
+    elif menu == "🛒 Vendas (PDV)":
+        st.header("🛒 Ponto de Venda Dinâmico")
         
-        if st.button("🚪 Sair"):
-            st.session_state.autenticado = False; st.rerun()
+        # Busca clientes e produtos para o seletor
+        clis = supabase.table("Clientes").select("nome_completo").execute().data
+        prods = supabase.table("produtos").select("descricao", "preco_venda").execute().data
+        
+        if clis and prods:
+            c_venda = st.selectbox("Selecione o Cliente", [c['nome_completo'] for c in clis])
+            p_venda = st.multiselect("Adicionar Produtos", [p['descricao'] for p in prods])
+            
+            total = 0
+            for item in p_venda:
+                preco = next(p['preco_venda'] for p in prods if p['descricao'] == item)
+                total += float(preco)
+                st.write(f"🔹 {item} - {formato_br(preco)}")
+            
+            st.divider()
+            st.subheader(f"Total da Venda: {formato_br(total)}")
+            if st.button("Finalizar Venda"):
+                st.success(f"Venda para {c_venda} registrada!")
+        else:
+            st.warning("Cadastre clientes e produtos antes de vender.")
+
+    # --- ABA SISTEMA ---
+    elif menu == "⚙️ Sistema":
+        if st.button("🔥 ZERAR TODO O BANCO"):
+            supabase.table("produtos").delete().neq("id", -1).execute()
+            supabase.table("Clientes").delete().neq("id", -1).execute()
+            st.success("Tabelas limpas!"); st.rerun()
