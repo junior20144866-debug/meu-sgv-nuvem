@@ -2,154 +2,152 @@ import streamlit as st
 from supabase import create_client
 import pandas as pd
 import time
-from datetime import datetime
 
 # --- 1. CONEXÃO ---
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c21pYXV2dmR5ZHhzaG56cmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTMzNjAsImV4cCI6MjA4ODMyOTM2MH0.Cu_AqQWMO7ptoYgWEU7bpFNEnzPLq7vL8SNDHPIe_-o"
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
-st.set_page_config(page_title="SGV Evolution Pro", layout="wide", initial_sidebar_state="expanded")
+# --- 2. LAYOUT DIGNO DE TESLA (Custom CSS) ---
+st.set_page_config(page_title="Evolution Tesla OS", layout="wide", initial_sidebar_state="expanded")
 
-# --- 2. DESIGN MODERNO (UI/UX) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #F8F9FA; }
-    .css-1d391kg { background-color: #1E1E1E; } /* Sidebar Dark */
-    .stat-card {
-        background: white; padding: 25px; border-radius: 15px;
-        box-shadow: 0 10px 20px rgba(0,0,0,0.05);
-        border-left: 5px solid #0078D4;
+    /* Estética Dark de Luxo */
+    .stApp { background-color: #0A0A0A; color: #E0E0E0; }
+    [data-testid="stSidebar"] { background-color: #111111; border-right: 1px solid #333; }
+    
+    /* Cards de Informação */
+    .tesla-card {
+        background: #1A1A1A;
+        padding: 20px;
+        border-radius: 15px;
+        border: 1px solid #333;
+        margin-bottom: 15px;
+        transition: 0.3s;
     }
-    .product-row {
-        background: white; padding: 10px; border-radius: 10px;
-        margin-bottom: 5px; border: 1px solid #E0E0E0;
+    .tesla-card:hover { border-color: #0078D4; box-shadow: 0 0 15px rgba(0,120,212,0.2); }
+    
+    /* Inputs Estilizados */
+    input { background-color: #222 !important; color: white !important; border-radius: 8px !important; }
+    
+    /* Botões Tesla */
+    .stButton>button {
+        background-color: #E81123; /* Vermelho Tesla */
+        color: white; border-radius: 25px; border: none; padding: 10px 25px;
+        font-weight: bold; width: 100%;
     }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 3. CÉREBRO DO SISTEMA (PERSISTÊNCIA & BUSCA) ---
-@st.cache_data(ttl=60)
-def carregar_config():
+# --- 3. FUNÇÕES DE PERSISTÊNCIA ---
+def carregar_empresa():
     try:
         res = supabase.table("config").select("*").eq("id", 1).execute()
         return res.data[0] if res.data else {}
     except: return {}
 
-def formato_br(v):
-    return f"R$ {float(v):,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
-
-# --- 4. INTERFACE ---
+# --- 4. NAVEGAÇÃO ---
 if 'auth' not in st.session_state: st.session_state.auth = False
-if 'carrinho' not in st.session_state: st.session_state.carrinho = []
 
 if not st.session_state.auth:
-    st.markdown("<h1 style='text-align: center; color: #0078D4;'>Evolution Pro 🚀</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #E81123;'>EVOLUTION TESLA OS</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,1,1])
     with col2:
-        if st.text_input("Chave Mestra", type="password") == "Naksu@6026":
-            if st.button("ACESSAR SISTEMA", use_container_width=True):
-                st.session_state.auth = True
-                st.rerun()
+        if st.text_input("Acesso Biométrico (Senha)", type="password") == "Naksu@6026":
+            if st.button("INICIAR SISTEMAS"): st.session_state.auth = True; st.rerun()
 else:
-    # Sidebar Estilizada
     with st.sidebar:
-        conf = carregar_config()
-        st.subheader(conf.get('nome', 'SGV Evolution'))
-        st.divider()
-        menu = st.radio("MENU", ["📊 Painel Geral", "🛒 PDV (Vendas)", "📦 Estoque", "👥 Clientes", "💰 Financeiro", "⚙️ Configurações"])
+        st.markdown("<h2 style='color: #E81123;'>Evolution OS</h2>", unsafe_allow_html=True)
+        menu = st.radio("SISTEMAS", ["📊 Dashboard", "🛒 PDV Vendas", "📦 Controle de Estoque", "👥 Base de Clientes", "💰 Financeiro", "⚙️ Configurações"])
 
-    # --- PÁGINA: PDV (VENDAS INTELIGENTES) ---
-    if menu == "🛒 PDV (Vendas)":
-        st.title("🛒 Frente de Caixa")
-        c1, c2 = st.columns([2, 1])
+    # --- PÁGINA: ESTOQUE (CONTROLE TOTAL DETALHADO) ---
+    if menu == "📦 Controle de Estoque":
+        st.title("📦 Inventário de Produtos")
         
-        with c1:
-            st.markdown("<div class='stat-card'>", unsafe_allow_html=True)
-            busca = st.text_input("🔍 Digite o nome ou código do produto", placeholder="Ex: Polpa de Abacaxi...")
-            prods = supabase.table("produtos").select("*").ilike("descricao", f"%{busca}%").limit(5).execute().data if busca else []
-            
-            for p in prods:
-                col_p1, col_p2, col_p3 = st.columns([3, 1, 1])
-                col_p1.write(p['descricao'])
-                col_p2.write(formato_br(p['preco_venda']))
-                if col_p3.button("➕", key=f"add_{p['id']}"):
-                    st.session_state.carrinho.append(p)
-                    st.toast(f"{p['descricao']} adicionado!")
-            st.markdown("</div>", unsafe_allow_html=True)
+        with st.expander("➕ Adicionar Novo Produto (Manual)"):
+            with st.form("new_product"):
+                c1, c2, c3 = st.columns([2, 2, 1])
+                desc = c1.text_input("Descrição do Produto")
+                ean = c2.text_input("EAN / Código")
+                unid = c3.selectbox("Unidade", ["UN", "KG", "CX", "PC", "LT"])
+                
+                c4, c5 = st.columns(2)
+                p_venda = c4.number_input("Preço de Venda", min_value=0.0)
+                estoque_min = c5.number_input("Estoque Mínimo", min_value=0)
+                
+                if st.form_submit_button("CADASTRAR PRODUTO"):
+                    supabase.table("produtos").insert({"descricao": desc, "ean13": ean, "unidade": unid, "preco_venda": p_venda}).execute()
+                    st.success("Produto integrado ao sistema!"); st.rerun()
 
-        with c2:
-            st.subheader("Carrinho")
-            total = 0
-            for i, item in enumerate(st.session_state.carrinho):
-                st.write(f"· {item['descricao']} - {formato_br(item['preco_venda'])}")
-                total += float(item['preco_venda'])
-            
-            st.divider()
-            st.markdown(f"## Total: {formato_br(total)}")
-            if st.button("FINALIZAR VENDA", type="primary", use_container_width=True):
-                st.success("Venda processada com sucesso!")
-                st.session_state.carrinho = []
-                time.sleep(1)
-                st.rerun()
+        # LISTAGEM TESLA STYLE
+        res = supabase.table("produtos").select("*").order("descricao").execute().data
+        if res:
+            for p in res:
+                st.markdown(f"""
+                <div class="tesla-card">
+                    <div style="display: flex; justify-content: space-between;">
+                        <span><b>{p['descricao']}</b> | {p.get('unidade', 'UN')}</span>
+                        <span style="color: #0078D4;">{f"R$ {p['preco_venda']:,.2f}"}</span>
+                    </div>
+                    <small style="color: #888;">Cód: {p.get('ean13', '---')}</small>
+                </div>
+                """, unsafe_allow_html=True)
+                if st.button("🗑️ Remover", key=f"del_{p['id']}"):
+                    supabase.table("produtos").delete().eq("id", p['id']).execute(); st.rerun()
+        else: st.info("Hangar de produtos vazio.")
 
-    # --- PÁGINA: ESTOQUE & CLIENTES (CONTROLE TOTAL) ---
-    elif menu in ["📦 Estoque", "👥 Clientes"]:
-        tabela = "produtos" if menu == "📦 Estoque" else "Clientes"
-        st.title(f"{menu} - Controle Total")
+    # --- PÁGINA: CLIENTES (DADOS COMPLETOS) ---
+    elif menu == "👥 Base de Clientes":
+        st.title("👥 Gestão de Clientes")
         
-        dados = supabase.table(tabela).select("*").execute().data
-        if dados:
-            df = pd.DataFrame(dados)
-            for idx, row in df.iterrows():
-                with st.expander(f"📝 {row.get('descricao', row.get('nome_completo'))}"):
-                    with st.form(f"form_{idx}"):
-                        st.write("Edite as informações abaixo:")
-                        # Aqui criamos campos dinâmicos baseados nas colunas
-                        novos_dados = {}
-                        for col in df.columns:
-                            if col not in ['id', 'created_at']:
-                                novos_dados[col] = st.text_input(col, value=str(row[col]))
-                        
-                        col_btn1, col_btn2 = st.columns(2)
-                        if col_btn1.form_submit_button("💾 Salvar"):
-                            supabase.table(tabela).update(novos_dados).eq("id", row['id']).execute()
-                            st.success("Alterado!"); st.rerun()
-                        if col_btn2.form_submit_button("🗑️ Excluir"):
-                            supabase.table(tabela).delete().eq("id", row['id']).execute()
-                            st.rerun()
-        else: st.info("Nada cadastrado.")
+        with st.expander("➕ Novo Cadastro"):
+            with st.form("new_client"):
+                nome = st.text_input("Nome Completo / Razão Social")
+                c1, c2 = st.columns(2)
+                doc = c1.text_input("CPF / CNPJ")
+                tel = c2.text_input("Telefone")
+                
+                st.markdown("---")
+                end = st.text_input("Endereço (Rua, Número)")
+                c3, c4, c5 = st.columns([2, 2, 1])
+                bairro = c3.text_input("Bairro")
+                cidade = c4.text_input("Cidade")
+                uf = c5.text_input("UF")
+                
+                if st.form_submit_button("SALVAR CLIENTE"):
+                    dados_c = {"nome_completo": nome, "cpf_cnpj": doc, "telefone": tel, "endereco": end, "bairro": bairro, "cidade": cidade, "uf": uf}
+                    supabase.table("Clientes").insert(dados_c).execute()
+                    st.success("Cliente cadastrado com sucesso!"); st.rerun()
 
-    # --- PÁGINA: CONFIGURAÇÕES (RESOLVENDO GARGALOS) ---
+        # Listagem em Tabela Moderna
+        res_c = supabase.table("Clientes").select("*").execute().data
+        if res_c:
+            df_c = pd.DataFrame(res_c)
+            st.dataframe(df_c[['nome_completo', 'cpf_cnpj', 'cidade', 'uf', 'telefone']], use_container_width=True)
+        else: st.info("Nenhum cliente na base.")
+
+    # --- PÁGINA: CONFIGURAÇÕES (THE CONTROL CENTER) ---
     elif menu == "⚙️ Configurações":
-        st.title("⚙️ Configurações Avançadas")
+        st.title("⚙️ Centro de Comando")
+        conf = carregar_empresa()
         
         with st.container():
-            st.subheader("🏢 Dados da Empresa (Eternizar)")
-            c1, c2 = st.columns(2)
-            n_emp = c1.text_input("Nome Fantasia", conf.get('nome', ''))
-            c_emp = c2.text_input("CNPJ", conf.get('cnpj', ''))
-            e_emp = st.text_input("Endereço", conf.get('end', ''))
+            st.markdown("<div class='tesla-card'>", unsafe_allow_html=True)
+            st.subheader("🏢 Identidade da Empresa")
+            col_a, col_b = st.columns(2)
+            n_emp = col_a.text_input("Nome Fantasia", conf.get('nome', ''))
+            c_emp = col_b.text_input("CNPJ", conf.get('cnpj', ''))
+            e_emp = st.text_input("Endereço Completo", conf.get('end', ''))
             
-            if st.button("💾 SALVAR CONFIGURAÇÕES"):
-                supabase.table("config").upsert({
-                    "id": 1, "nome": n_emp, "cnpj": c_emp, "end": e_emp
-                }).execute()
-                st.cache_data.clear()
-                st.success("Dados gravados no banco de dados!")
+            if st.button("SALVAR ALTERAÇÕES"):
+                supabase.table("config").upsert({"id": 1, "nome": n_emp, "cnpj": c_emp, "end": e_emp}).execute()
+                st.success("Configurações atualizadas!"); time.sleep(1); st.rerun()
+            st.markdown("</div>", unsafe_allow_html=True)
 
         st.divider()
-        st.subheader("🧹 Limpeza por Sessão (Controle Total)")
-        col_z1, col_z2, col_z3, col_z4 = st.columns(4)
-        if col_z1.button("Zerar Clientes"):
-            supabase.table("Clientes").delete().neq("id", -1).execute()
-            st.rerun()
-        if col_z2.button("Zerar Estoque"):
-            supabase.table("produtos").delete().neq("id", -1).execute()
-            st.rerun()
-        if col_z3.button("Zerar Vendas"):
-            st.info("Financeiro zerado!") # Simulação até criarmos a tabela de vendas
-        if col_z4.button("🔥 ZERAR TUDO"):
+        st.subheader("🧹 Limpeza Total")
+        if st.button("🔥 ZERAR TODO O SISTEMA"):
             supabase.table("produtos").delete().neq("id", -1).execute()
             supabase.table("Clientes").delete().neq("id", -1).execute()
-            st.rerun()
+            st.success("Sistema limpo!"); st.rerun()
