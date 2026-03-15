@@ -1,46 +1,41 @@
 import streamlit as st
 from supabase import create_client
 import pandas as pd
-import base64
+import time
 
-# --- 1. NÚCLEO DE CONEXÃO E PERSISTÊNCIA ---
+# --- 1. CONEXÃO MESTRA ---
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c21pYXV2dmR5ZHhzaG56cmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTMzNjAsImV4cCI6MjA4ODMyOTM2MH0.Cu_AqQWMO7ptoYgWEU7bpFNEnzPLq7vL8SNDHPIe_-o"
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
-if 'auth' not in st.session_state: st.session_state.auth = False
-
+# --- 2. CONFIGURAÇÃO DE TELA E ESTILO ---
 st.set_page_config(page_title="JMQJ SGV SISTEMAS", layout="wide")
 
-# --- 2. FUNÇÕES DE SINCRONIA (O FIM DA SANFONA) ---
-def buscar_config():
-    try:
-        res = supabase.table("config").select("*").eq("id", 1).execute()
-        return res.data[0] if res.data else {}
-    except: return {}
-
-def buscar_dados(tabela):
-    try:
-        res = supabase.table(tabela).select("*").order("id", desc=True).execute()
-        return res.data if res.data else []
-    except: return []
-
-# --- 3. ESTILO WINDOWS MODERNO (DESIGN ATRAENTE) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #F0F2F5; }
+    .stApp { background-color: #F8F9FB; }
     .win-tile {
         background: white; padding: 25px; border-radius: 12px;
         box-shadow: 0 4px 15px rgba(0,0,0,0.08); border-top: 6px solid #0078D4;
         text-align: center; margin-bottom: 20px;
     }
-    .tile-num { font-size: 2.5rem; font-weight: 800; color: #0078D4; margin: 0; }
+    .tile-num { font-size: 2.8rem; font-weight: 800; color: #0078D4; margin: 0; }
     .tile-label { font-weight: bold; color: #555; text-transform: uppercase; letter-spacing: 1px; }
-    .stButton>button { border-radius: 8px; font-weight: 600; }
     </style>
     """, unsafe_allow_html=True)
 
+# --- 3. MOTOR DE DADOS SEM CACHE (TRAÇÃO DIRETA) ---
+def db_read(tabela):
+    """Busca dados reais no banco ignorando qualquer cache do navegador"""
+    try:
+        res = supabase.table(tabela).select("*").order("id", desc=True).execute()
+        return res.data if res.data else []
+    except:
+        return []
+
 # --- 4. FLUXO DE ACESSO ---
+if 'auth' not in st.session_state: st.session_state.auth = False
+
 if not st.session_state.auth:
     st.markdown("<h1 style='text-align: center; color: #0078D4;'>JMQJ SGV SISTEMAS 💼</h1>", unsafe_allow_html=True)
     _, col, _ = st.columns([1,1,1])
@@ -52,113 +47,118 @@ if not st.session_state.auth:
                 st.rerun()
             else: st.error("Chave Inválida")
 else:
-    # Carregamento em Tempo Real
-    emp = buscar_config()
-    estoque = buscar_dados("produtos")
-    clientes = buscar_dados("Clientes")
+    # LEITURA OBRIGATÓRIA EM CADA REFRESH (FIM DA SANFONA)
+    config_list = db_read("config")
+    emp = config_list[0] if config_list else {}
+    estoque = db_read("produtos")
+    clientes = db_read("Clientes")
 
+    # BARRA LATERAL
     with st.sidebar:
         st.title(emp.get('nome', 'JMQJ SGV'))
         if emp.get('cnpj'): st.caption(f"CNPJ: {emp['cnpj']}")
         st.write("---")
-        menu = st.radio("SISTEMAS", ["🏠 Dashboard", "📦 Estoque", "👥 Clientes", "📑 Importação", "⚙️ Configurações"])
+        menu = st.radio("SISTEMAS", ["🏠 Painel Dashboard", "📦 Estoque", "👥 Clientes", "📑 Importação", "⚙️ Configurações"])
 
-    # --- ABA: DASHBOARD (JANELAS INTELIGENTES) ---
-    if menu == "🏠 Dashboard":
+    # --- ABA: DASHBOARD (JANELAS VIVAS) ---
+    if menu == "🏠 Painel Dashboard":
         st.header(f"Centro de Comando | {emp.get('nome', 'SGV')}")
         c1, c2, c3, c4 = st.columns(4)
-        c1.markdown(f'<div class="win-tile"><p class="tile-label">📦 Estoque</p><p class="tile-num">{len(estoque)}</p></div>', unsafe_allow_html=True)
-        c2.markdown(f'<div class="win-tile"><p class="tile-label">👥 Clientes</p><p class="tile-num">{len(clientes)}</p></div>', unsafe_allow_html=True)
-        c3.markdown(f'<div class="win-tile"><p class="tile-label">💰 Vendas/Mês</p><p class="tile-num">0</p></div>', unsafe_allow_html=True)
-        c4.markdown(f'<div class="win-tile"><p class="tile-label">📊 Status</p><p class="tile-num" style="color:green">Ativo</p></div>', unsafe_allow_html=True)
+        c1.markdown(f'<div class="win-tile"><p class="tile-label">Produtos</p><p class="tile-num">{len(estoque)}</p></div>', unsafe_allow_html=True)
+        c2.markdown(f'<div class="win-tile"><p class="tile-label">Clientes</p><p class="tile-num">{len(clientes)}</p></div>', unsafe_allow_html=True)
+        c3.markdown(f'<div class="win-tile"><p class="tile-label">Vendas</p><p class="tile-num">0</p></div>', unsafe_allow_html=True)
+        c4.markdown(f'<div class="win-tile"><p class="tile-label">Sistema</p><p class="tile-num" style="color:green">Ativo</p></div>', unsafe_allow_html=True)
 
-    # --- ABA: ESTOQUE E CLIENTES (CONTROLE TOTAL) ---
+    # --- ABA: ESTOQUE E CLIENTES (CONTROLE DE EDIÇÃO) ---
     elif menu in ["📦 Estoque", "👥 Clientes"]:
         tab = "produtos" if menu == "📦 Estoque" else "Clientes"
         st.header(f"Gestão de {menu}")
         
-        with st.expander("📝 Inserir ou Editar (Controle Direto)"):
-            with st.form("form_master"):
-                st.caption("Dica: Use ID 0 para novo cadastro. Use o ID da lista abaixo para editar.")
-                id_reg = st.number_input("ID do Registro", min_value=0, step=1)
-                
+        with st.expander("📝 Inserir ou Editar Registro"):
+            with st.form("form_edit"):
+                id_edit = st.number_input("ID (0 para Novo)", min_value=0)
                 if tab == "produtos":
-                    desc = st.text_input("Descrição do Produto")
-                    ean = st.text_input("EAN / Código")
-                    pr = st.number_input("Preço de Venda", format="%.2f")
+                    desc = st.text_input("Descrição")
+                    ean = st.text_input("Código")
+                    pr = st.number_input("Preço", format="%.2f")
                     pld = {"descricao": desc, "ean13": ean, "preco_venda": pr}
                 else:
-                    nome = st.text_input("Nome / Razão Social")
-                    doc = st.text_input("CPF / CNPJ")
+                    nome = st.text_input("Nome/Razão Social")
+                    doc = st.text_input("CPF/CNPJ")
                     end = st.text_input("Endereço")
                     pld = {"nome_completo": nome, "cpf_cnpj": doc, "endereco": end}
                 
-                if st.form_submit_button("GRAVAR NO BANCO DE DADOS"):
-                    if id_reg == 0: supabase.table(tab).insert(pld).execute()
-                    else: supabase.table(tab).update(pld).eq("id", id_reg).execute()
-                    st.success("Operação concluída!"); st.rerun()
+                if st.form_submit_button("💾 SALVAR NO BANCO"):
+                    if id_edit == 0: supabase.table(tab).insert(pld).execute()
+                    else: supabase.table(tab).update(pld).eq("id", id_edit).execute()
+                    st.success("Gravado!")
+                    time.sleep(1)
+                    st.rerun()
 
-        lista = estoque if tab == "produtos" else clientes
-        if lista:
-            st.dataframe(pd.DataFrame(lista), use_container_width=True)
-            id_del = st.number_input("ID para EXCLUIR", min_value=0, key="del")
-            if st.button("🗑️ Confirmar Exclusão Definitiva"):
+        dados_lista = estoque if tab == "produtos" else clientes
+        if dados_lista:
+            st.dataframe(pd.DataFrame(dados_lista), use_container_width=True)
+            id_del = st.number_input("ID para Excluir", min_value=0, key="del")
+            if st.button("🗑️ Confirmar Exclusão"):
                 supabase.table(tab).delete().eq("id", id_del).execute()
                 st.rerun()
 
-    # --- ABA: IMPORTAÇÃO (MOTOR RECALIBRADO) ---
+    # --- ABA: IMPORTAÇÃO (MOTOR DE ALTA PERFORMANCE) ---
     elif menu == "📑 Importação":
-        st.header("📑 Importação Inteligente (Excel)")
-        alvo = st.selectbox("Escolha o destino", ["produtos", "Clientes"])
-        arq = st.file_uploader("Suba o arquivo XLSX", type=["xlsx"])
+        st.header("📑 Carga em Massa (XLSX)")
+        target = st.selectbox("Para onde enviar?", ["produtos", "Clientes"])
+        file = st.file_uploader("Selecione o arquivo", type=["xlsx"])
         
-        if arq and st.button("🚀 INICIAR PROCESSAMENTO"):
-            df_ex = pd.read_excel(arq)
-            progresso = st.progress(0)
-            items = df_ex.to_dict('records')
+        if file and st.button("🚀 EXECUTAR IMPORTAÇÃO"):
+            df_in = pd.read_excel(file)
+            progress = st.progress(0)
+            items = df_in.to_dict('records')
             
             for i, row in enumerate(items):
-                try:
-                    if alvo == "produtos":
-                        # Limpa o preço: remove R$, converte vírgula em ponto
-                        p_bruto = str(row.get('P_VENDA', 0)).replace('R$', '').replace('.', '').replace(',', '.').strip()
-                        ready = {
-                            "descricao": str(row.get('DESCRICAO', '')),
-                            "preco_venda": float(p_bruto) if p_bruto else 0.0,
-                            "ean13": str(row.get('CODIGO', ''))
-                        }
-                    else:
-                        ready = {
-                            "nome_completo": str(row.get('NOM', '')),
-                            "cpf_cnpj": str(row.get('CGC', '')),
-                            "endereco": str(row.get('RUA', ''))
-                        }
-                    supabase.table(alvo).insert(ready).execute()
-                except Exception as e:
-                    st.warning(f"Aviso na linha {i+2}: {e}")
-                progresso.progress((i + 1) / len(items))
-            st.success("Importação concluída com sucesso!"); st.rerun()
+                if target == "produtos":
+                    # Limpeza de preços: remove R$, pontos e ajusta vírgula
+                    raw_p = str(row.get('P_VENDA', 0)).replace('R$', '').replace('.', '').replace(',', '.').strip()
+                    ready = {
+                        "descricao": str(row.get('DESCRICAO', '')),
+                        "preco_venda": float(raw_p) if raw_p else 0.0,
+                        "ean13": str(row.get('CODIGO', ''))
+                    }
+                else:
+                    ready = {
+                        "nome_completo": str(row.get('NOM', '')),
+                        "cpf_cnpj": str(row.get('CGC', '')),
+                        "endereco": str(row.get('RUA', ''))
+                    }
+                supabase.table(target).insert(ready).execute()
+                progress.progress((i + 1) / len(items))
+            
+            st.success(f"Sucesso! {len(items)} registros inseridos.")
+            time.sleep(2)
+            st.rerun()
 
-    # --- ABA: CONFIGURAÇÕES (TRAVA DE SEGURANÇA) ---
+    # --- ABA: CONFIGURAÇÕES (TRAVA DE PERSISTÊNCIA) ---
     elif menu == "⚙️ Configurações":
-        st.header("⚙️ Ajustes de Identidade")
+        st.header("⚙️ Configurações e Identidade")
         
-        with st.form("cfg_persist"):
-            st.subheader("Dados da Empresa (Persistentes)")
-            n = st.text_input("Razão Social / Fantasia", value=emp.get('nome', ''))
+        with st.form("cfg"):
+            n = st.text_input("Nome da Empresa", value=emp.get('nome', ''))
             c = st.text_input("CNPJ", value=emp.get('cnpj', ''))
             e = st.text_input("Endereço", value=emp.get('end', ''))
-            st.info("Logomarca: Suporta PNG, JPG e GIF.")
-            up = st.file_uploader("Nova Logomarca", type=["png", "jpg", "gif"])
+            st.info("Logomarca: Suporta PNG, GIF e JPG.")
+            logo = st.file_uploader("Logomarca", type=["png", "gif", "jpg"])
             
-            if st.form_submit_button("💾 FIXAR E SALVAR CONFIGURAÇÕES"):
+            if st.form_submit_button("💾 SALVAR DEFINITIVAMENTE"):
                 supabase.table("config").upsert({"id": 1, "nome": n, "cnpj": c, "end": e}).execute()
-                st.success("Configurações travadas no banco!"); st.rerun()
-        
+                st.success("Configurações salvas e travadas!")
+                time.sleep(1)
+                st.rerun()
+
         st.divider()
-        st.subheader("🔥 CONTROLE TOTAL (ZERAR SISTEMA)")
+        st.subheader("🔥 RESET DO SISTEMA")
         col1, col2 = st.columns(2)
-        if col1.button("🗑️ ZERAR TODO O ESTOQUE"):
-            supabase.table("produtos").delete().neq("id", -1).execute(); st.rerun()
-        if col2.button("🗑️ ZERAR TODOS OS CLIENTES"):
-            supabase.table("Clientes").delete().neq("id", -1).execute(); st.rerun()
+        if col1.button("🗑️ ZERAR ESTOQUE"):
+            supabase.table("produtos").delete().neq("id", -1).execute()
+            st.rerun()
+        if col2.button("🗑️ ZERAR CLIENTES"):
+            supabase.table("Clientes").delete().neq("id", -1).execute()
+            st.rerun()
