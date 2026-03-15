@@ -1,152 +1,135 @@
 import streamlit as st
 from supabase import create_client
 import pandas as pd
-import time
-import io
 
-# --- 1. CONEXÃO BAZUCA (SEM FALHAS) ---
+# --- 1. FUNDAÇÃO E CONEXÃO (IMUTÁVEL) ---
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c21pYXV2dmR5ZHhzaG56cmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTMzNjAsImV4cCI6MjA4ODMyOTM2MH0.Cu_AqQWMO7ptoYgWEU7bpFNEnzPLq7vL8SNDHPIe_-o"
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
 st.set_page_config(page_title="JMQJ SGV SISTEMAS", layout="wide")
 
-# --- 2. MOTOR DE INTELIGÊNCIA DE DADOS (ANTI-BAGUNÇA) ---
-def mapear_e_limpar(df, tipo):
-    # Dicionário de sinônimos baseado nos seus arquivos reais
-    mapas = {
-        "produtos": {
-            "ean13": ["BARRA", "CODIGO", "REFERENCIA"],
-            "descricao": ["DESCRICAO", "NOME", "ITEM"],
-            "preco_venda": ["P_VENDA", "PRECO", "VALOR"],
-            "unidade": ["UNIDADE", "UN"]
-        },
-        "Clientes": {
-            "nome_completo": ["NOM", "NOME", "CLIENTE"],
-            "cpf_cnpj": ["CGC", "CPF", "CNPJ"],
-            "endereco": ["RUA", "LOGRADOURO", "ENDERECO"],
-            "bairro": ["BAI", "BAIRRO"],
-            "cidade": ["CID", "CIDADE"],
-            "uf": ["UF"],
-            "telefone": ["TEL1", "CEL", "TELEFONE"]
-        }
-    }
-    
-    df_final = pd.DataFrame()
-    for campo_bd, sinonimos in mapas[tipo].items():
-        # Tenta achar a coluna no seu Excel bagunçado
-        col_excel = next((c for c in df.columns if str(c).upper().strip() in sinonimos), None)
-        if col_excel:
-            df_final[campo_bd] = df[col_excel]
-            
-    return df_final.dropna(subset=[df_final.columns[0]]) # Remove linhas totalmente vazias
-
-# --- 3. UI STYLE: WINDOWS TILES ---
+# --- 2. ESTILO WINDOWS DINÂMICO (MODO CLARO) ---
 st.markdown("""
     <style>
-    .stApp { background-color: #F3F4F7; }
-    .win-tile {
-        background: white; padding: 25px; border-radius: 8px;
-        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-        border-bottom: 4px solid #0078D4; text-align: center;
-        transition: 0.3s;
+    .stApp { background-color: #F8F9FA; }
+    .win-card {
+        background: white; padding: 20px; border-radius: 10px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.05); border-top: 4px solid #0078D4;
+        margin-bottom: 20px; height: 100%;
     }
-    .win-tile:hover { transform: translateY(-5px); box-shadow: 0 8px 15px rgba(0,0,0,0.1); }
+    .tile-label { font-size: 0.9rem; color: #666; font-weight: bold; }
+    .tile-value { font-size: 1.8rem; color: #0078D4; font-weight: 800; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- 4. SISTEMA PRINCIPAL ---
+# --- 3. MOTOR DE SINCRONIZAÇÃO (O FIM DO EFEITO SANFONA) ---
+def sincronizar_empresa():
+    res = supabase.table("config").select("*").eq("id", 1).execute()
+    return res.data[0] if res.data else {}
+
+def importar_massa_inteligente(df, destino):
+    # Dicionário baseado nos nomes reais dos seus arquivos enviados (ESTOQUE e CLIENTES)
+    mapas = {
+        "produtos": {"ean13": ["CODIGO", "BARRA"], "descricao": ["DESCRICAO"], "preco_venda": ["P_VENDA"], "unidade": ["UNIDADE"]},
+        "Clientes": {"nome_completo": ["NOM"], "cpf_cnpj": ["CGC", "CPF"], "endereco": ["RUA"], "bairro": ["BAI"], "cidade": ["CID"], "uf": ["UF"]}
+    }
+    limpo = pd.DataFrame()
+    for bd, excel in mapas[destino].items():
+        col = next((c for c in df.columns if str(c).upper().strip() in excel), None)
+        if col: limpo[bd] = df[col]
+    return limpo
+
+# --- 4. INTERFACE ---
 if 'auth' not in st.session_state: st.session_state.auth = False
 
 if not st.session_state.auth:
-    st.markdown("<h1 style='text-align: center;'>JMQJ SGV SISTEMAS</h1>", unsafe_allow_html=True)
+    st.markdown("<h1 style='text-align: center; color: #0078D4;'>JMQJ SGV SISTEMAS 💼</h1>", unsafe_allow_html=True)
     col1, col2, col3 = st.columns([1,1,1])
     with col2:
-        if st.text_input("Acesso Biométrico/Senha", type="password") == "Naksu@6026":
-            if st.button("DESBLOQUEAR"): st.session_state.auth = True; st.rerun()
+        if st.text_input("Chave de Segurança", type="password") == "Naksu@6026":
+            if st.button("INICIAR", use_container_width=True): st.session_state.auth = True; st.rerun()
 else:
-    menu = st.sidebar.radio("Navegação", ["🏠 Início", "🛒 Vendas", "📦 Estoque", "👥 Clientes", "📑 Importação Inteligente", "📊 Relatórios", "💰 Financeiro", "⚙️ Configurações"])
+    menu = st.sidebar.radio("SISTEMAS", ["🏠 Painel Início", "🛒 Vendas (PDV)", "📦 Estoque Total", "👥 Gestão Clientes", "📑 Importação", "📊 Relatórios", "⚙️ Ajustes"])
 
-    # --- ABA INÍCIO (ESTILO JANELAS) ---
-    if menu == "🏠 Início":
-        st.title("Painel JMQJ SGV")
+    # --- ABA: INÍCIO (JANELAS DINÂMICAS) ---
+    if menu == "🏠 Painel Início":
+        st.title("Painel Geral de Operações")
         c1, c2, c3, c4 = st.columns(4)
-        c1.markdown('<div class="win-tile"><p>🛒 Vendas de Hoje</p><h3>R$ 0,00</h3></div>', unsafe_allow_html=True)
-        c2.markdown('<div class="win-tile"><p>📦 Itens no Estoque</p><h3>Consultar</h3></div>', unsafe_allow_html=True)
-        c3.markdown('<div class="win-tile"><p>👥 Novos Clientes</p><h3>Acessar</h3></div>', unsafe_allow_html=True)
-        c4.markdown('<div class="win-tile"><p>💰 Saldo em Caixa</p><h3>Relatório</h3></div>', unsafe_allow_html=True)
+        
+        # BUSCA DADOS REAIS PARA AS JANELAS
+        count_p = len(supabase.table("produtos").select("id").execute().data)
+        count_c = len(supabase.table("Clientes").select("id").execute().data)
+        
+        with c1: st.markdown(f'<div class="win-card"><p class="tile-label">VENDAS</p><p class="tile-value">R$ 0,00</p></div>', unsafe_allow_html=True)
+        with c2: st.markdown(f'<div class="win-card"><p class="tile-label">ESTOQUE</p><p class="tile-value">{count_p} itens</p></div>', unsafe_allow_html=True)
+        with c3: st.markdown(f'<div class="win-card"><p class="tile-label">CLIENTES</p><p class="tile-value">{count_c} registros</p></div>', unsafe_allow_html=True)
+        with c4: st.markdown(f'<div class="win-card"><p class="tile-label">STATUS</p><p class="tile-value" style="color:green">Ativo</p></div>', unsafe_allow_html=True)
 
-    # --- ABA VENDAS (PDV POLIDO) ---
-    elif menu == "🛒 Vendas":
-        st.header("🛒 Ponto de Venda")
-        col_v1, col_v2 = st.columns([2, 1])
-        with col_v1:
-            busca = st.text_input("🔍 Buscar por nome ou código...")
-            if busca:
-                res = supabase.table("produtos").select("*").ilike("descricao", f"%{busca}%").execute().data
+    # --- ABA: VENDAS (PDV COM BUSCA TOTAL) ---
+    elif menu == "🛒 Vendas (PDV)":
+        st.header("🛒 Terminal de Vendas")
+        col_pdv1, col_pdv2 = st.columns([2,1])
+        with col_pdv1:
+            q = st.text_input("Pesquisar produto por Nome ou Código EAN")
+            if q:
+                res = supabase.table("produtos").select("*").ilike("descricao", f"%{q}%").execute().data
                 for r in res:
-                    c_p1, c_p2, c_p3 = st.columns([3, 1, 1])
-                    c_p1.write(r['descricao'])
-                    c_p2.write(f"R$ {r['preco_venda']}")
-                    if c_p3.button("➕", key=f"venda_{r['id']}"): st.success("Adicionado!")
-        with col_v2:
-            st.subheader("Checkout")
+                    cp1, cp2, cp3 = st.columns([3, 1, 1])
+                    cp1.write(f"**{r['descricao']}**")
+                    cp2.write(f"R$ {r['preco_venda']}")
+                    if cp3.button("Adicionar", key=f"add_{r['id']}"): st.toast("Item no Carrinho!")
+        with col_pdv2:
+            st.subheader("Carrinho Atual")
             st.write("---")
             st.markdown("### Total: R$ 0,00")
-            st.button("Finalizar e Emitir Cupom", type="primary")
+            st.button("Finalizar e Lançar no Financeiro", type="primary")
 
-    # --- ABA CLIENTES (CONTROLE TOTAL) ---
-    elif menu == "👥 Clientes":
-        st.header("👥 Gestão de Clientes")
-        with st.expander("➕ Inclusão Manual"):
-            with st.form("manual_cli"):
-                n = st.text_input("Nome/Razão Social")
-                d = st.text_input("CPF/CNPJ")
-                end = st.text_input("Rua e Número")
-                c1, c2, c3 = st.columns([2, 2, 1])
-                b, ci, uf = c1.text_input("Bairro"), c2.text_input("Cidade"), c3.text_input("UF")
-                if st.form_submit_button("Salvar Cadastro"):
-                    supabase.table("Clientes").insert({"nome_completo": n, "cpf_cnpj": d, "endereco": end, "bairro": b, "cidade": ci, "uf": uf}).execute()
+    # --- ABA: ESTOQUE (CONTROLE TOTAL) ---
+    elif menu == "📦 Estoque Total":
+        st.header("📦 Inventário e Produtos")
+        with st.expander("➕ Inclusão Manual Detalhada"):
+            with st.form("form_p"):
+                c1, c2, c3 = st.columns([3, 1, 1])
+                desc = c1.text_input("Descrição Completa")
+                ean = c2.text_input("Código EAN")
+                un = c3.text_input("Unidade (ex: KG, UN)")
+                preco = st.number_input("Preço de Venda", min_value=0.0)
+                if st.form_submit_button("💾 Salvar no Inventário"):
+                    supabase.table("produtos").insert({"descricao": desc, "ean13": ean, "unidade": un, "preco_venda": preco}).execute()
                     st.rerun()
         
-        # Lista com edição
-        clis = supabase.table("Clientes").select("*").execute().data
-        if clis: st.dataframe(pd.DataFrame(clis), use_container_width=True)
+        # LISTAGEM REAL
+        itens = supabase.table("produtos").select("*").order("descricao").execute().data
+        if itens: st.dataframe(pd.DataFrame(itens), use_container_width=True)
 
-    # --- ABA IMPORTAÇÃO (MASSA BAGUNÇADA) ---
-    elif menu == "📑 Importação Inteligente":
-        st.header("📑 Motor de Inteligência de Dados")
-        tipo = st.selectbox("Destino", ["produtos", "Clientes"])
-        file = st.file_uploader("Suba sua planilha bagunçada", type=["xlsx"])
-        if file:
-            df_raw = pd.read_excel(file)
-            df_limpo = mapear_e_limpar(df_raw, tipo)
-            st.write("✅ Sistema organizou os dados assim:")
-            st.dataframe(df_limpo.head())
-            if st.button("🚀 Confirmar Inserção em Massa"):
-                for _, row in df_limpo.iterrows():
-                    supabase.table(tipo).insert(row.to_dict()).execute()
-                st.success("Tudo carregado com sucesso!")
-
-    # --- ABA CONFIGURAÇÕES (BLINDAGEM) ---
-    elif menu == "⚙️ Configurações":
-        st.header("⚙️ Configurações do Sistema")
-        # Busca no banco para não perder ao fechar
-        conf = supabase.table("config").select("*").eq("id", 1).execute().data
-        emp = conf[0] if conf else {}
-
-        with st.form("empresa"):
-            st.subheader("🏢 Dados da JMQJ SGV SISTEMAS")
-            n_f = st.text_input("Nome da Empresa", value=emp.get('nome', ''))
-            c_f = st.text_input("CNPJ", value=emp.get('cnpj', ''))
-            e_f = st.text_input("Endereço Completo", value=emp.get('end', ''))
-            # Logomarca
-            upload_logo = st.file_uploader("Upload da Logomarca (PNG/JPG)", type=["png", "jpg"])
-            if st.form_submit_button("💾 SALVAR E FIXAR"):
-                supabase.table("config").upsert({"id": 1, "nome": n_f, "cnpj": c_f, "end": e_f}).execute()
-                st.success("Configurações salvas permanentemente!")
+    # --- ABA: CONFIGURAÇÕES (BLINDAGEM DE DADOS) ---
+    elif menu == "⚙️ Ajustes":
+        st.header("⚙️ Configurações da Empresa")
+        dados_e = sincronizar_empresa()
         
-        if st.button("🗑️ ZERAR TUDO"):
-            supabase.table("produtos").delete().neq("id", -1).execute()
-            supabase.table("Clientes").delete().neq("id", -1).execute()
-            st.rerun()
+        with st.form("form_e"):
+            st.subheader("Informações da JMQJ SGV SISTEMAS")
+            c1, c2 = st.columns(2)
+            n_emp = c1.text_input("Nome", value=dados_e.get('nome', ''))
+            c_emp = c2.text_input("CNPJ", value=dados_e.get('cnpj', ''))
+            e_emp = st.text_input("Endereço Completo", value=dados_e.get('end', ''))
+            logo = st.file_uploader("Trocar Logomarca", type=["png", "jpg"])
+            if st.form_submit_button("🔒 GRAVAR E FIXAR CONFIGURAÇÕES"):
+                supabase.table("config").upsert({"id": 1, "nome": n_emp, "cnpj": c_emp, "end": e_emp}).execute()
+                st.success("Dados fixados com sucesso!")
+
+    # --- ABA: IMPORTAÇÃO (MOTOR ANTI-BAGUNÇA) ---
+    elif menu == "📑 Importação":
+        st.header("📑 Carga de Dados em Massa")
+        t = st.selectbox("Destino", ["produtos", "Clientes"])
+        arq = st.file_uploader("Arraste o Excel bagunçado aqui", type=["xlsx"])
+        if arq:
+            df = pd.read_excel(arq)
+            df_limpo = importar_massa_inteligente(df, t)
+            st.write("Dados organizados automaticamente:")
+            st.dataframe(df_limpo.head())
+            if st.button("🚀 Iniciar Carga"):
+                for _, row in df_limpo.iterrows():
+                    supabase.table(t).insert(row.to_dict()).execute()
+                st.success("Carga finalizada!"); st.rerun()
