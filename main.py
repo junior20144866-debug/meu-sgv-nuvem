@@ -10,37 +10,41 @@ URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c21pYXV2dmR5ZHhzaG56cmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTMzNjAsImV4cCI6MjA4ODMyOTM2MH0.Cu_AqQWMO7ptoYgWEU7bpFNEnzPLq7vL8SNDHPIe_-o"
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
-st.set_page_config(page_title="JMQJ SGV v41", layout="wide", page_icon="💼")
+st.set_page_config(page_title="JMQJ SGV v42", layout="wide", page_icon="💼")
 
-# --- 2. TRATAMENTO DE DADOS (DNA SISCOM) ---
-def limpar_preco(valor):
+# --- 2. TRATAMENTO DE DADOS (BASEADO NO SEU ARQUIVO PRODUTOS.DBF) ---
+def formatar_moeda_supabase(valor):
     try:
-        if pd.isna(valor): return 0.0
-        s = str(valor).replace('R$', '').replace('.', '').replace(',', '.').strip()
+        if pd.isna(valor) or valor == "": return 0.0
+        # Remove R$, pontos de milhar e garante ponto decimal
+        s = str(valor).replace('R$', '').replace(' ', '').replace('.', '').replace(',', '.').strip()
         return float(re.sub(r'[^0-9.]', '', s))
     except: return 0.0
 
-def buscar_dados():
+def carregar_dados_sistema():
     try:
+        # Busca sem cache para garantir que a carga apareça na hora
         c = supabase.table("config").select("*").eq("id", 1).execute().data
-        p = supabase.table("produtos").select("*").order("descricao").execute().data
-        cl = supabase.table("Clientes").select("*").order("nome_completo").execute().data
+        p = supabase.table("produtos").select("*").order("id", desc=True).execute().data
+        cl = supabase.table("Clientes").select("*").order("id", desc=True).execute().data
         
         df_p = pd.DataFrame(p) if p else pd.DataFrame(columns=['id', 'descricao', 'ean13', 'preco_venda'])
-        df_p['preco_venda'] = pd.to_numeric(df_p['preco_venda'], errors='coerce').fillna(0.0)
-        
         df_cl = pd.DataFrame(cl) if cl else pd.DataFrame(columns=['id', 'nome_completo', 'cpf_cnpj', 'endereco'])
+        
         return (c[0] if c else {}), df_p, df_cl
-    except: return {}, pd.DataFrame(), pd.DataFrame()
+    except:
+        return {}, pd.DataFrame(), pd.DataFrame()
 
-# --- 3. INTERFACE ---
+# --- 3. ESTILO VISUAL ---
 st.markdown("""
     <style>
-    .stApp { background-color: #F4F7F9; }
-    .win-tile { background: white; padding: 20px; border-radius: 8px; border-top: 4px solid #0078D4; text-align: center; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+    .stApp { background-color: #F0F2F5; }
+    .win-card { background: white; padding: 20px; border-radius: 10px; border-top: 5px solid #0078D4; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+    .val-m { font-size: 2.5rem; font-weight: bold; color: #0078D4; }
     </style>
     """, unsafe_allow_html=True)
 
+# --- 4. FLUXO DE NAVEGAÇÃO ---
 if 'auth' not in st.session_state: st.session_state.auth = False
 
 if not st.session_state.auth:
@@ -48,67 +52,88 @@ if not st.session_state.auth:
     _, col, _ = st.columns([1,1,1])
     with col:
         senha = st.text_input("Chave Mestra", type="password")
-        if st.button("LIGAR 🚀", use_container_width=True):
+        if st.button("ACESSAR 🚀", use_container_width=True):
             if senha == "Naksu@6026": st.session_state.auth = True; st.rerun()
 else:
-    emp, df_e, df_c = buscar_dados()
+    emp, df_e, df_c = carregar_dados_sistema()
 
     with st.sidebar:
         if emp.get('logo_base64'): st.image(emp['logo_base64'], use_container_width=True)
         st.title(emp.get('nome', 'SGV'))
-        menu = st.radio("MÓDULOS", ["🏠 Dashboard", "🛒 Vendas", "📦 Estoque", "👥 Clientes", "📑 Importação", "⚙️ Ajustes"])
+        st.write("---")
+        menu = st.radio("MENUS", ["🏠 Dashboard", "🛒 Vendas", "📦 Estoque", "👥 Clientes", "📑 Importação", "⚙️ Ajustes"])
 
-    # --- IMPORTAÇÃO (MAPEADA PELO SEU DBF) ---
-    if menu == "📑 Importação":
-        st.header("📑 Importação Inteligente (Padrão Siscom)")
-        alvo = st.selectbox("Destino", ["produtos", "Clientes"])
-        arq = st.file_uploader("Suba o ficheiro XLSX", type=["xlsx"])
+    # --- ABA: DASHBOARD (FIM DO ZERO) ---
+    if menu == "🏠 Dashboard":
+        st.header(f"Painel Operacional | {emp.get('nome', 'SGV')}")
+        c1, c2, c3 = st.columns(3)
+        c1.markdown(f'<div class="win-card">PRODUTOS<br><span class="val-m">{len(df_e)}</span></div>', unsafe_allow_html=True)
+        c2.markdown(f'<div class="win-card">CLIENTES<br><span class="val-m">{len(df_c)}</span></div>', unsafe_allow_html=True)
+        c3.markdown(f'<div class="win-card">VENDAS HOJE<br><span class="val-m">0</span></div>', unsafe_allow_html=True)
+
+    # --- ABA: IMPORTAÇÃO (MAPEAMENTO REAL SISCOM) ---
+    elif menu == "📑 Importação":
+        st.header("📑 Carga de Dados (Padrão FPQ/Siscom)")
+        alvo = st.selectbox("Escolha o destino", ["produtos", "Clientes"])
+        arq = st.file_uploader("Suba o arquivo XLSX", type=["xlsx"])
         
         if arq and st.button("🚀 EXECUTAR CARGA"):
-            df_in = pd.read_excel(arq)
-            for r in df_in.to_dict('records'):
+            df_raw = pd.read_excel(arq)
+            prog = st.progress(0)
+            lista_dados = df_raw.to_dict('records')
+            
+            for i, r in enumerate(lista_dados):
                 try:
                     if alvo == "produtos":
-                        # Usa os nomes de colunas que vimos no seu ficheiro original
+                        # Mapeamento exato baseado no seu PRODUTOS.DBF
                         pld = {
-                            "descricao": str(r.get('DESCRICAO', r.get('NOME', ''))),
-                            "preco_venda": limpar_preco(r.get('P_VENDA', 0)),
+                            "descricao": str(r.get('DESCRICAO', r.get('descricao', 'SEM NOME'))),
+                            "preco_venda": formatar_moeda_supabase(r.get('P_VENDA', r.get('preco_venda', 0))),
                             "ean13": str(r.get('CODIGO', r.get('BARRA', '')))
                         }
                     else:
+                        # Mapeamento exato baseado no seu CLIENTES.DBF
                         pld = {
-                            "nome_completo": str(r.get('NOM', r.get('NOME', ''))),
-                            "cpf_cnpj": str(r.get('CGC', r.get('CPF', ''))),
-                            "endereco": f"{r.get('RUA', '')}, {r.get('BAI', '')} - {r.get('CID', '')}"
+                            "nome_completo": str(r.get('NOM', r.get('nome_completo', ''))),
+                            "cpf_cnpj": str(r.get('CGC', r.get('cpf_cnpj', ''))),
+                            "endereco": str(r.get('RUA', r.get('endereco', '')))
                         }
                     supabase.table(alvo).insert(pld).execute()
                 except: pass
-            st.success("Carga finalizada com sucesso!"); time.sleep(1); st.rerun()
+                prog.progress((i + 1) / len(lista_dados))
+            st.success("Carga realizada! Clique em Estoque para conferir."); time.sleep(1); st.rerun()
 
-    # --- ESTOQUE E CLIENTES (VISUALIZAÇÃO BLINDADA) ---
+    # --- ABA: ESTOQUE E CLIENTES ---
     elif menu in ["📦 Estoque", "👥 Clientes"]:
-        tab = menu.replace("📦 ", "").replace("👥 ", "")
-        st.header(f"Relação de {tab}")
-        df_show = df_e if tab == "Estoque" else df_c
-        if not df_show.empty:
-            st.dataframe(df_show, use_container_width=True, hide_index=True)
+        tabela = "produtos" if menu == "📦 Estoque" else "Clientes"
+        st.header(f"Relação de {tabela.capitalize()}")
+        dados = df_e if tabela == "produtos" else df_c
+        
+        if not dados.empty:
+            st.dataframe(dados, use_container_width=True, hide_index=True)
+            with st.expander("🗑️ Excluir Registro"):
+                sel = st.selectbox("ID", [f"{d['id']} - {d.get('descricao', d.get('nome_completo', ''))}" for d in dados.to_dict('records')])
+                if st.button("Confirmar Exclusão"):
+                    supabase.table(tabela).delete().eq("id", int(sel.split(" - ")[0])).execute()
+                    st.rerun()
         else:
-            st.info(f"A tabela de {tab} está vazia no banco de dados.")
+            st.warning("Tabela vazia. O sistema ainda não detectou os dados.")
 
-    # --- AJUSTES (CONTROLES REPOSTOS) ---
+    # --- ABA: AJUSTES (RESETS) ---
     elif menu == "⚙️ Ajustes":
-        st.header("⚙️ Configurações")
-        with st.form("f"):
-            n = st.text_input("Empresa", value=emp.get('nome', ''))
+        st.header("⚙️ Ajustes e Manutenção")
+        with st.form("f_adj"):
+            n = st.text_input("Nome Empresa", value=emp.get('nome', ''))
             e = st.text_input("Endereço", value=emp.get('end', ''))
             logo = st.file_uploader("Logo", type=["png"])
-            if st.form_submit_button("💾 SALVAR"):
+            if st.form_submit_button("💾 SALVAR TUDO"):
                 l_b64 = emp.get('logo_base64', '')
                 if logo: l_b64 = f"data:image/png;base64,{base64.b64encode(logo.read()).decode('utf-8')}"
-                supabase.table("config").upsert({"id": 1, "nome": n, "end": e, "logo_base64": l_b64}).execute(); st.rerun()
+                supabase.table("config").upsert({"id": 1, "nome": n, "end": e, "logo_base64": l_b64}).execute()
+                st.rerun()
         
         st.divider()
-        if st.button("🔥 ZERAR TUDO (HARD RESET)"):
+        if st.button("🔥 ZERAR TUDO (RESTART)"):
             supabase.table("produtos").delete().neq("id", -1).execute()
             supabase.table("Clientes").delete().neq("id", -1).execute()
             supabase.table("config").delete().eq("id", 1).execute()
