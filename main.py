@@ -10,107 +10,110 @@ URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c21pYXV2dmR5ZHhzaG56cmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTMzNjAsImV4cCI6MjA4ODMyOTM2MH0.Cu_AqQWMO7ptoYgWEU7bpFNEnzPLq7vL8SNDHPIe_-o"
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
-st.set_page_config(page_title="JMQJ SGV SaaS", layout="wide", page_icon="🎯")
+st.set_page_config(page_title="JMQJ SGV v85", layout="wide", page_icon="🎯")
 
-# --- 2. MOTOR DE RECUPERAÇÃO (INTELIGÊNCIA ARTIFICIAL DE MAPEAMENTO) ---
-def sincronizar_v84():
+# --- 2. MOTOR DE TRADUÇÃO (O TRADUTOR DA BÚSSOLA) ---
+def normalizar_colunas(df):
+    """ Converte qualquer variação de nome para o padrão da Bússola (MAIÚSCULAS) """
+    mapeamento = {
+        'NOME': 'NOM', 'CLIENTE': 'NOM', 'RAZAO': 'NOM',
+        'PRECO': 'P_VENDA', 'VALOR': 'P_VENDA', 'VENDA': 'P_VENDA',
+        'PRODUTO': 'DESCRICAO', 'ITEM': 'DESCRICAO'
+    }
+    df.columns = [c.upper().strip() for c in df.columns]
+    df.rename(columns=mapeamento, inplace=True)
+    return df
+
+def carregar_universo_v85():
     try:
-        # Busca Empresa
-        c = supabase.table("config").select("*").eq("id", 1).execute().data
-        empresa = c[0] if c else {"id": 1, "nome": "JMQJ SGV", "cnpj": "", "end": ""}
-        
-        # Busca Produtos e Clientes
+        emp = supabase.table("config").select("*").eq("id", 1).execute().data
         p = supabase.table("produtos").select("*").execute().data
         cl = supabase.table("Clientes").select("*").execute().data
         
         df_p = pd.DataFrame(p) if p else pd.DataFrame()
         df_c = pd.DataFrame(cl) if cl else pd.DataFrame()
         
-        # NORMALIZAÇÃO: Converte todas as colunas para MAIÚSCULAS para evitar erros de leitura
-        if not df_p.empty: df_p.columns = [str(col).upper() for col in df_p.columns]
-        if not df_c.empty: df_c.columns = [str(col).upper() for col in df_c.columns]
+        # Garante que o Python enxergue as colunas em MAIÚSCULAS vindo do banco
+        if not df_p.empty: df_p.columns = [c.upper() for c in df_p.columns]
+        if not df_c.empty: df_c.columns = [c.upper() for c in df_c.columns]
             
-        return empresa, df_p, df_c
+        return (emp[0] if emp else {"id":1, "nome":"SGV"}), df_p, df_c
     except:
-        return {"id": 1, "nome": "ERRO CONEXÃO"}, pd.DataFrame(), pd.DataFrame()
+        return {"id":1, "nome":"SGV"}, pd.DataFrame(), pd.DataFrame()
 
-# --- 3. ESTILO VISUAL ---
-st.markdown("""
-    <style>
-    .stApp { background-color: #F8F9FA; }
-    .card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #E5E7EB; text-align: center; }
-    .metric-val { font-size: 2.3rem; font-weight: 700; color: #2563EB; }
-    </style>
-    """, unsafe_allow_html=True)
+# --- 3. INTERFACE OPERACIONAL ---
+emp, df_e, df_c = carregar_universo_v85()
 
-if 'auth' not in st.session_state: st.session_state.auth = False
-if not st.session_state.auth:
-    _, col, _ = st.columns([1,1,1])
-    with col:
-        st.title("JMQJ SGV 🚀")
-        senha = st.text_input("Senha", type="password")
-        if st.button("LIGAR"):
-            if senha == "Naksu@6026": st.session_state.auth = True; st.rerun()
-else:
-    emp, df_e, df_c = sincronizar_v84()
+with st.sidebar:
+    if emp.get('logo_base64'): st.image(emp['logo_base64'], use_container_width=True)
+    st.title(emp.get('nome', 'SGV'))
+    menu = st.radio("NAVEGAÇÃO", ["📊 Dashboard", "💰 Vendas & O.S", "📦 Estoque", "👥 Clientes", "📂 Carga Massiva", "⚙️ Ajustes"])
 
-    with st.sidebar:
-        if emp.get('logo_base64'): st.image(emp['logo_base64'], use_container_width=True)
-        st.subheader(emp.get('nome', 'SGV'))
-        menu = st.radio("NAVEGAÇÃO", ["📊 Painel", "💰 Vendas", "📦 Estoque", "👥 Clientes", "📂 Importação", "⚙️ Ajustes"])
+# --- DASHBOARD (INDICADORES REAIS) ---
+if menu == "📊 Dashboard":
+    st.header(f"Gestão: {emp.get('nome')}")
+    c1, c2, c3 = st.columns(3)
+    c1.metric("PRODUTOS", len(df_e))
+    c2.metric("CLIENTES", len(df_c))
+    c3.metric("VENDAS DIA", 0)
 
-    # --- INDICADORES (O FIM DO ZERO) ---
-    if menu == "📊 Painel":
-        st.header(f"Painel Operacional | {emp.get('nome')}")
-        c1, c2, c3 = st.columns(3)
-        c1.markdown(f"<div class='card'>PRODUTOS<br><span class='metric-val'>{len(df_e)}</span></div>", unsafe_allow_html=True)
-        c2.markdown(f"<div class='card'>CLIENTES<br><span class='metric-val'>{len(df_c)}</span></div>", unsafe_allow_html=True)
-        c3.markdown(f"<div class='card'>VENDAS DIA<br><span class='metric-val'>0</span></div>", unsafe_allow_html=True)
-
-    # --- ABA IMPORTAÇÃO (MAPEADOR INTELIGENTE) ---
-    elif menu == "📂 Importação":
-        st.header("Carga Massiva Inteligente")
-        alvo = st.selectbox("Tabela", ["produtos", "Clientes"])
-        arq = st.file_uploader("Arquivo XLSX", type=["xlsx"])
-        if arq and st.button("🚀 INICIAR IMPORTAÇÃO"):
-            df_in = pd.read_excel(arq)
-            # Limpa o nome das colunas do Excel para bater com o banco
-            df_in.columns = [str(c).upper().strip() for c in df_in.columns]
-            
-            for r in df_in.to_dict('records'):
+# --- CARGA MASSIVA (O MOTOR DE TRADUÇÃO EM AÇÃO) ---
+elif menu == "📂 Carga Massiva":
+    st.header("📂 Importação de Dados da Bússola")
+    alvo = st.selectbox("Escolha a Tabela", ["Produtos", "Clientes"])
+    arquivo = st.file_uploader("Suba seu Excel (.xlsx)", type=["xlsx"])
+    
+    if arquivo:
+        df_temp = pd.read_excel(arquivo)
+        df_temp = normalizar_colunas(df_temp)
+        
+        st.subheader("Prévia dos Dados (Como o sistema vai ler):")
+        st.dataframe(df_temp.head(3))
+        
+        if st.button("🚀 CONFIRMAR E GRAVAR NO BANCO"):
+            progresso = st.progress(0)
+            linhas = df_temp.to_dict('records')
+            for i, r in enumerate(linhas):
                 try:
-                    if alvo == "produtos":
-                        # Mapeia P_VENDA, PRECO ou VALOR automaticamente
-                        preco = r.get('P_VENDA', r.get('PRECO', r.get('VALOR', 0)))
-                        pv = str(preco).replace('R$', '').replace('.', '').replace(',', '.').strip()
+                    if alvo == "Produtos":
+                        p_v = str(r.get('P_VENDA', 0)).replace('R$', '').replace('.', '').replace(',', '.').strip()
                         supabase.table("produtos").insert({
-                            "DESCRICAO": str(r.get('DESCRICAO', r.get('NOME', ''))),
-                            "P_VENDA": float(pv),
-                            "UNIDADE": str(r.get('UNIDADE', 'UN'))
+                            "DESCRICAO": str(r.get('DESCRICAO', '')),
+                            "P_VENDA": float(p_v), "UNIDADE": str(r.get('UNIDADE', 'UN'))
                         }).execute()
                     else:
-                        # Mapeia NOM ou NOME automaticamente
                         supabase.table("Clientes").insert({
-                            "NOM": str(r.get('NOM', r.get('NOME', ''))),
-                            "RUA": str(r.get('RUA', '')),
-                            "BAI": str(r.get('BAI', '')),
-                            "TEL1": str(r.get('TEL1', ''))
+                            "NOM": str(r.get('NOM', '')), "RUA": str(r.get('RUA', '')),
+                            "BAI": str(r.get('BAI', '')), "TEL1": str(r.get('TEL1', ''))
                         }).execute()
                 except: pass
-            st.success("Importação concluída! Verifique o Painel."); time.sleep(1); st.rerun()
+                progresso.progress((i + 1) / len(linhas))
+            st.success("Carga realizada! Os indicadores vão 'acordar' agora.")
+            time.sleep(1); st.rerun()
 
-    # --- AJUSTES (CONTROLE TOTAL) ---
-    elif menu == "⚙️ Ajustes":
-        st.header("Configurações")
-        with st.form("f_emp"):
-            n_e = st.text_input("Empresa", value=emp.get('nome', ''))
-            c_e = st.text_input("CNPJ", value=emp.get('cnpj', ''))
-            if st.form_submit_button("💾 FIXAR DADOS"):
-                supabase.table("config").upsert({"id": 1, "nome": n_e, "cnpj": c_e}).execute()
-                st.rerun()
-        
-        st.divider()
-        if st.button("🔥 RESET TOTAL DO SISTEMA"):
-            supabase.table("produtos").delete().neq("id", -1).execute()
-            supabase.table("Clientes").delete().neq("id", -1).execute()
+# --- VENDAS (ROBUSTEZ SAAS) ---
+elif menu == "💰 Vendas & O.S":
+    st.header("Lançamento de Pedidos")
+    if df_e.empty or df_c.empty:
+        st.error("⚠️ ERRO: Dashboard zerada. Importe dados antes de vender.")
+    else:
+        with st.form("venda_os"):
+            col_cli = "NOM" if "NOM" in df_c.columns else df_c.columns[0]
+            st.selectbox("Cliente", df_c[col_cli].tolist())
+            st.selectbox("Item", df_e['DESCRICAO'].tolist())
+            st.number_input("Qtd", min_value=1)
+            st.form_submit_button("GERAR PEDIDO")
+
+# --- AJUSTES (CONTROLE DE RESET) ---
+elif menu == "⚙️ Ajustes":
+    st.header("Controle de Sistema")
+    with st.form("ajuste_emp"):
+        n = st.text_input("Empresa", value=emp.get('nome',''))
+        if st.form_submit_button("FIXAR EMPRESA"):
+            supabase.table("config").upsert({"id": 1, "nome": n}).execute()
             st.rerun()
+    st.divider()
+    if st.button("🔥 RESET TOTAL (LIMPAR TUDO)"):
+        supabase.table("produtos").delete().neq("id", -1).execute()
+        supabase.table("Clientes").delete().neq("id", -1).execute()
+        st.rerun()
