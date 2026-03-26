@@ -12,27 +12,27 @@ supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
 st.set_page_config(page_title="JMQJ SGV SaaS", layout="wide", page_icon="📈")
 
-# --- 2. MOTOR DE RECUPERAÇÃO (MAPEAMENTO DOS ARQUIVOS BÚSSOLA) ---
-def sincronizar_universo_v76():
+# --- 2. MOTOR DE RECUPERAÇÃO (ESTRUTURA DBF FORÇADA) ---
+def sincronizar_universo_v77():
     try:
-        # Busca Configuração (id=1)
+        # Busca Configuração
         c = supabase.table("config").select("*").eq("id", 1).execute().data
         empresa = c[0] if c else {"id": 1, "nome": "JMQJ SGV", "cnpj": "", "end": ""}
         
-        # Busca Produtos (Mapeado p/ p_venda conforme CADASTRO.DBF)
-        p = supabase.table("produtos").select("*").order("descricao").execute().data
-        df_p = pd.DataFrame(p) if p else pd.DataFrame(columns=['id', 'descricao', 'p_venda'])
+        # Busca Produtos (CADASTRO.DBF -> DESCRICAO, P_VENDA, UNIDADE)
+        p = supabase.table("produtos").select("*").execute().data
+        df_p = pd.DataFrame(p) if p else pd.DataFrame(columns=['id', 'DESCRICAO', 'UNIDADE', 'P_VENDA'])
         
-        # Busca Clientes (Mapeado p/ NOM, RUA, BAI conforme CLIENTES.DBF)
+        # Busca Clientes (CLIENTES.DBF -> NOM, RUA, BAI, TEL1)
         cl = supabase.table("Clientes").select("*").execute().data
         df_c = pd.DataFrame(cl) if cl else pd.DataFrame(columns=['id', 'NOM', 'RUA', 'BAI', 'TEL1'])
         
         return empresa, df_p, df_c
     except Exception as e:
-        st.error(f"Erro de sincronia: {e}")
+        st.error(f"Erro Crítico de Sincronia: {e}")
         return {"id": 1, "nome": "JMQJ SGV"}, pd.DataFrame(), pd.DataFrame()
 
-# --- 3. ESTILO VISUAL SAAS ---
+# --- 3. ESTILO VISUAL ---
 st.markdown("""
     <style>
     .stApp { background-color: #F8F9FA; }
@@ -47,11 +47,11 @@ if not st.session_state.auth:
     _, col, _ = st.columns([1,1,1])
     with col:
         st.title("JMQJ SGV 🚀")
-        senha = st.text_input("Senha Mestra", type="password")
+        senha = st.text_input("Acesso Mestre", type="password")
         if st.button("ACESSAR", use_container_width=True):
             if senha == "Naksu@6026": st.session_state.auth = True; st.rerun()
 else:
-    emp, df_e, df_c = sincronizar_universo_v76()
+    emp, df_e, df_c = sincronizar_universo_v77()
 
     with st.sidebar:
         if emp.get('logo_base64'): 
@@ -68,56 +68,41 @@ else:
         c2.markdown(f"<div class='card'>CLIENTES<br><span class='metric-val'>{len(df_c)}</span></div>", unsafe_allow_html=True)
         c3.markdown(f"<div class='card'>VENDAS HOJE<br><span class='metric-val'>0</span></div>", unsafe_allow_html=True)
 
-    # --- ABA: VENDAS (MODELO BÚSSOLA) ---
-    elif menu == "💰 Vendas":
-        st.header("Vendas e Pedidos")
-        col1, col2 = st.columns([1, 1.2])
-        with col1:
-            with st.form("v_form"):
-                cli = st.selectbox("Cliente", df_c['NOM'].tolist() if not df_c.empty else ["Carga Pendente"])
-                prod = st.selectbox("Produto", df_e['descricao'].tolist() if not df_e.empty else ["Vazio"])
-                qtd = st.number_input("Quantidade", min_value=1)
-                prazo = st.number_input("Vencimento (Dias)", min_value=0, value=30)
-                if st.form_submit_button("GERAR DOCUMENTO"):
-                    venc = (datetime.now() + timedelta(days=prazo)).strftime('%d/%m/%Y')
-                    with col2:
-                        st.markdown(f"""
-                        <div class="paper">
-                            <table style="width:100%"><tr>
-                            <td><img src="{emp.get('logo_base64', '')}" width="70"></td>
-                            <td style="text-align:center"><b>{emp.get('nome', '')}</b><br>CNPJ: {emp.get('cnpj', '')}<br>{emp.get('end', '')}</td>
-                            <td style="text-align:right; border:1px solid #000; padding:5px">PEDIDO: 004215<br>{datetime.now().strftime('%d/%m/%Y')}</td>
-                            </tr></table>
-                            <hr><p><b>CLIENTE:</b> {cli}</p>
-                            <p><b>ITEM:</b> {prod} | QTD: {qtd}</p>
-                            <br><b>VENCIMENTO: {venc}</b><br><br><br>
-                            <div style="text-align:center">________________________<br>Assinatura</div>
-                        </div>""", unsafe_allow_html=True)
-
-    # --- ABA: CLIENTES (ACORDAR LISTA) ---
-    elif menu == "👥 Clientes":
-        st.header("Relação de Clientes")
-        if not df_c.empty:
-            st.dataframe(df_c[['NOM', 'RUA', 'BAI', 'TEL1']], use_container_width=True, hide_index=True)
+    # --- ABA: ESTOQUE (PRODUTOS - FIM DA PÁGINA EM BRANCO) ---
+    elif menu == "📦 Estoque":
+        st.header("📦 Relação de Itens")
+        if not df_e.empty:
+            # Selecionamos apenas colunas que temos certeza que existem no banco (MAIÚSCULAS)
+            cols_show = [c for c in ['DESCRICAO', 'UNIDADE', 'P_VENDA'] if c in df_e.columns]
+            st.dataframe(df_e[cols_show], use_container_width=True, hide_index=True)
         else:
-            st.info("Lista vazia. Verifique a Carga de Dados.")
+            st.info("Estoque vazio. Vá em 'Carga Massiva'.")
 
-    # --- ABA: AJUSTES (CONTROLE TOTAL RECUPERADO) ---
+    # --- ABA: CLIENTES (NOM, RUA, BAI) ---
+    elif menu == "👥 Clientes":
+        st.header("👥 Base de Clientes")
+        if not df_c.empty:
+            cols_cli = [c for c in ['NOM', 'RUA', 'BAI', 'TEL1'] if c in df_c.columns]
+            st.dataframe(df_c[cols_cli], use_container_width=True, hide_index=True)
+        else:
+            st.warning("Lista de clientes vazia.")
+
+    # --- ABA: AJUSTES (CONTROLE TOTAL) ---
     elif menu == "⚙️ Ajustes":
-        st.header("Configurações e Controle")
+        st.header("⚙️ Configurações")
         with st.form("f_emp"):
-            n_e = st.text_input("Empresa", value=emp.get('nome', ''))
+            n_e = st.text_input("Nome da Empresa", value=emp.get('nome', ''))
             c_e = st.text_input("CNPJ", value=emp.get('cnpj', ''))
             e_e = st.text_input("Endereço", value=emp.get('end', ''))
-            logo = st.file_uploader("Logo", type=["png"])
-            if st.form_submit_button("💾 FIXAR DADOS"):
+            logo = st.file_uploader("Logo PNG", type=["png"])
+            if st.form_submit_button("💾 SALVAR DADOS"):
                 l64 = emp.get('logo_base64', '')
                 if logo: l64 = f"data:image/png;base64,{base64.b64encode(logo.read()).decode('utf-8')}"
                 supabase.table("config").upsert({"id": 1, "nome": n_e, "cnpj": c_e, "end": e_e, "logo_base64": l64}).execute()
-                st.success("Dados fixados!"); time.sleep(1); st.rerun()
+                st.success("Dados fixados!"); st.rerun()
         
         st.divider()
-        st.subheader("🗑️ ZONA DE RESET (CONTROLE TOTAL)")
+        st.subheader("🗑️ ZONA DE RESET")
         cr1, cr2, cr3 = st.columns(3)
         if cr1.button("ZERAR ESTOQUE", use_container_width=True):
             supabase.table("produtos").delete().neq("id", -1).execute(); st.rerun()
@@ -128,23 +113,28 @@ else:
             supabase.table("Clientes").delete().neq("id", -1).execute()
             supabase.table("config").delete().eq("id", 1).execute(); st.rerun()
 
-    # --- ABA: CARGA MASSIVA (DNA ESTABILIZADO) ---
+    # --- ABA: CARGA MASSIVA (MAPEAMENTO MAIÚSCULO) ---
     elif menu == "📂 Carga Massiva":
-        st.header("Importação")
-        alvo = st.selectbox("Tabela", ["produtos", "Clientes"])
-        arq = st.file_uploader("XLSX", type=["xlsx"])
-        if arq and st.button("🚀 INICIAR"):
+        st.header("📑 Importação XLSX")
+        alvo = st.selectbox("Destino", ["produtos", "Clientes"])
+        arq = st.file_uploader("Subir arquivo", type=["xlsx"])
+        if arq and st.button("🚀 IMPORTAR"):
             df_in = pd.read_excel(arq)
             for r in df_in.to_dict('records'):
                 try:
                     if alvo == "produtos":
-                        pv = str(r.get('P_VENDA', 0)).replace('R$', '').replace('.', '').replace(',', '.').strip()
-                        supabase.table("produtos").insert({"descricao": str(r.get('DESCRICAO')), "p_venda": float(pv)}).execute()
+                        pv = str(r.get('P_VENDA', r.get('p_venda', 0))).replace('R$', '').replace('.', '').replace(',', '.').strip()
+                        supabase.table("produtos").insert({
+                            "DESCRICAO": str(r.get('DESCRICAO', r.get('descricao', ''))),
+                            "P_VENDA": float(pv),
+                            "UNIDADE": str(r.get('UNIDADE', r.get('unidade', 'UN')))
+                        }).execute()
                     else:
                         supabase.table("Clientes").insert({
                             "NOM": str(r.get('NOM', r.get('NOME', ''))),
-                            "RUA": str(r.get('RUA', '')), "BAI": str(r.get('BAI', '')),
+                            "RUA": str(r.get('RUA', '')),
+                            "BAI": str(r.get('BAI', '')),
                             "TEL1": str(r.get('TEL1', ''))
                         }).execute()
                 except: pass
-            st.success("Importado!"); time.sleep(1); st.rerun()
+            st.success("Importação concluída!"); time.sleep(1); st.rerun()
