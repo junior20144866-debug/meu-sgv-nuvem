@@ -5,162 +5,149 @@ import time
 import base64
 from datetime import datetime
 
-# --- 1. CONEXÃO DIRETA (SEM FILTROS) ---
+# --- 1. CONEXÃO DIRETA ---
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c21pYXV2dmR5ZHhzaG56cmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTMzNjAsImV4cCI6MjA4ODMyOTM2MH0.Cu_AqQWMO7ptoYgWEU7bpFNEnzPLq7vL8SNDHPIe_-o"
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
-st.set_page_config(page_title="JMQJ Sistemas", layout="wide", page_icon="🎯")
+st.set_page_config(page_title="JMQJ Sistemas", layout="wide")
 
-# --- 2. SEGURANÇA (ACESSO MESTRE) ---
+# --- 2. ACESSO RESTRITO ---
 if 'auth' not in st.session_state: st.session_state.auth = False
 
 if not st.session_state.auth:
     _, col, _ = st.columns([1,1,1])
     with col:
         st.markdown("<h2 style='text-align: center;'>🔐 JMQJ Sistemas</h2>", unsafe_allow_html=True)
-        senha = st.text_input("Senha de Operação", type="password")
-        if st.button("LIGAR SISTEMA", use_container_width=True):
+        senha = st.text_input("Senha de Acesso", type="password")
+        if st.button("LIGAR MOTOR", use_container_width=True):
             if senha == "Naksu@6026": 
                 st.session_state.auth = True
                 st.rerun()
             else: st.error("Acesso negado.")
     st.stop()
 
-# --- 3. CARREGAMENTO DE DADOS (RAIO-X) ---
-def buscar_dados():
+# --- 3. MOTOR DE DADOS ---
+def carregar_tudo():
     try:
         e = supabase.table("config").select("*").eq("id", 1).execute().data
         p = supabase.table("produtos").select("*").order("descricao").execute().data
-        c = supabase.table("Clientes").select("*").order("NOM").execute().data
-        return (e[0] if e else {}), pd.DataFrame(p), pd.DataFrame(c)
-    except Exception as err:
-        st.error(f"Erro de leitura no banco: {err}")
+        cl = supabase.table("Clientes").select("*").order("NOM").execute().data
+        return (e[0] if e else {}), pd.DataFrame(p), pd.DataFrame(cl)
+    except:
         return {}, pd.DataFrame(), pd.DataFrame()
 
-emp, df_p, df_c = buscar_dados()
+emp, df_p, df_c = carregar_tudo()
 
 # --- 4. INTERFACE ---
 with st.sidebar:
-    if emp.get('logo_base64'): st.image(emp['logo_base64'], use_container_width=True)
     st.title("JMQJ Sistemas")
-    st.write(f"Empresa: {emp.get('nome', 'Não configurada')}")
+    if emp.get('logo_base64'): st.image(emp['logo_base64'], use_container_width=True)
+    st.write(f"**Operação:** {emp.get('nome', 'Padrão')}")
     st.write("---")
-    menu = st.radio("MÓDULOS", ["📊 Dashboard", "🧾 Vendas", "📦 Produtos", "👥 Clientes", "⚙️ Ajustes"])
+    menu = st.radio("MÓDULOS", ["📊 Painel", "🧾 Pedido/Venda", "👥 Clientes", "📦 Produtos", "⚙️ Ajustes"])
 
-# --- MODULO CLIENTES (FOCO NA INSERÇÃO MANUAL) ---
+# --- MODULO CLIENTES (INSERÇÃO MANUAL PURA) ---
 if menu == "👥 Clientes":
-    st.header("👥 Cadastro de Clientes")
-    with st.form("form_cli", clear_on_submit=True):
+    st.header("👥 Gestão Manual de Clientes")
+    with st.form("f_cli", clear_on_submit=True):
         c1, c2 = st.columns(2)
-        nome = c1.text_input("Nome/Razão Social (Obrigatório)")
-        doc = c2.text_input("CPF/CNPJ")
-        rua = st.text_input("Endereço (Rua)")
-        c3, c4, c5 = st.columns([2, 2, 1])
-        bairro = c3.text_input("Bairro")
-        cidade = c4.text_input("Cidade")
+        nome = c1.text_input("Nome/Razão Social (NOM)")
+        cpf = c2.text_input("CPF/CNPJ")
+        rua = st.text_input("Rua/Logradouro")
+        c3, c4, c5 = st.columns([2,2,1])
+        bai = c3.text_input("Bairro")
+        cep = c4.text_input("CEP")
+        cid = st.text_input("Cidade")
         uf = c5.text_input("UF", max_chars=2)
-        c6, c7 = st.columns(2)
-        tel = c6.text_input("Telefone/WhatsApp")
-        email = c7.text_input("E-mail")
+        tel = st.text_input("Telefone/WhatsApp")
+        email = st.text_input("E-mail")
         
-        if st.form_submit_button("💾 SALVAR CLIENTE"):
-            if not nome:
-                st.error("O campo Nome é obrigatório.")
-            else:
-                try:
-                    payload = {
-                        "NOM": nome, "CPF": doc, "RUA": rua, "BAI": bairro,
-                        "CIDADE": cidade, "UF": uf, "TEL": tel, "EMAIL": email
-                    }
-                    supabase.table("Clientes").insert(payload).execute()
-                    st.success("✅ Cliente gravado com sucesso!")
-                    time.sleep(1); st.rerun()
-                except Exception as e:
-                    st.error(f"❌ O banco de dados rejeitou a gravação: {e}")
+        if st.form_submit_button("💾 SALVAR NO BANCO"):
+            try:
+                # Tentamos gravar exatamente o que você digitou
+                payload = {
+                    "NOM": nome, "CPF": cpf, "RUA": rua, "BAI": bai,
+                    "CEP": cep, "CIDADE": cid, "UF": uf, "TEL": tel, "EMAIL": email
+                }
+                supabase.table("Clientes").insert(payload).execute()
+                st.success("✅ Gravado com sucesso!")
+                time.sleep(1); st.rerun()
+            except Exception as e:
+                st.error(f"❌ Erro na gravação: {e}")
 
 # --- MODULO PRODUTOS ---
 elif menu == "📦 Produtos":
-    st.header("📦 Cadastro de Produtos")
-    with st.form("form_prod", clear_on_submit=True):
-        desc = st.text_input("Descrição do Item")
+    st.header("📦 Gestão Manual de Produtos")
+    with st.form("f_prod", clear_on_submit=True):
+        desc = st.text_input("Descrição do Produto")
         c1, c2, c3 = st.columns(3)
-        uni = c1.text_input("Unidade (UN, KG, PC)")
+        uni = c1.text_input("Unidade (UN/KG)")
         est = c2.number_input("Estoque", value=0)
-        prc = c3.number_input("Preço de Venda (R$)", value=0.0, step=0.1)
-        
+        prc = c3.number_input("Preço de Venda (R$)", value=0.0)
         if st.form_submit_button("💾 SALVAR PRODUTO"):
             try:
                 supabase.table("produtos").insert({
                     "descricao": desc, "unidade": uni, "estoque": est, "p_venda": prc
                 }).execute()
-                st.success("✅ Produto gravado!")
+                st.success("✅ Produto Salvo!")
                 time.sleep(1); st.rerun()
             except Exception as e:
-                st.error(f"❌ Erro ao gravar: {e}")
+                st.error(f"❌ Erro ao salvar: {e}")
 
-# --- MODULO VENDAS (IMPRESSÃO A5) ---
-elif menu == "🧾 Vendas":
-    st.header("🧾 Emissão de Pedido")
+# --- MODULO PEDIDO (IMPRESSÃO A5) ---
+elif menu == "🧾 Pedido/Venda":
+    st.header("🧾 Emissão de Documento")
     if df_c.empty or df_p.empty:
-        st.warning("Cadastre clientes e produtos primeiro.")
+        st.warning("Cadastre dados manualmente primeiro.")
     else:
         with st.form("venda"):
-            cli = st.selectbox("Selecione o Cliente", df_c['NOM'].tolist())
-            prod = st.selectbox("Selecione o Produto", df_p['descricao'].tolist())
+            c_sel = st.selectbox("Cliente", df_c['NOM'].tolist())
+            p_sel = st.selectbox("Produto", df_p['descricao'].tolist())
             qtd = st.number_input("Qtd", min_value=1)
-            desc_v = st.number_input("Desconto (R$)", value=0.0)
-            acre_v = st.number_input("Acréscimo (R$)", value=0.0)
+            desc = st.number_input("Desconto R$", value=0.0)
+            acre = st.number_input("Acréscimo R$", value=0.0)
             if st.form_submit_button("GERAR PEDIDO"):
-                st.session_state.v_ready = True
-                st.session_state.v_cli = df_c[df_c['NOM'] == cli].iloc[0]
-                st.session_state.v_pro = df_p[df_p['descricao'] == prod].iloc[0]
-                st.session_state.v_vals = {'q': qtd, 'd': desc_v, 'a': acre_v}
+                cli_d = df_c[df_c['NOM'] == c_sel].iloc[0]
+                pro_d = df_p[df_p['descricao'] == p_sel].iloc[0]
+                total = (pro_d['p_venda'] * qtd) - desc + acre
+                
+                st.markdown(f"""
+                <div style="border: 2px solid #000; padding: 20px; font-family: monospace; background: white; color: black;">
+                    <h3 style="text-align:center;">JMQJ SISTEMAS - PEDIDO</h3>
+                    <hr>
+                    <p><b>EMPRESA:</b> {emp.get('nome', 'JMQJ')}</p>
+                    <p><b>CLIENTE:</b> {cli_d['NOM']} | Tel: {cli_d.get('TEL','')}</p>
+                    <p>End: {cli_d.get('RUA','')}, {cli_d.get('BAI','')}</p>
+                    <hr>
+                    <p>{pro_d['descricao']} | {qtd} x {pro_d['p_venda']} = R$ {pro_d['p_venda']*qtd:.2f}</p>
+                    <p style="text-align:right">DESC: R$ {desc:.2f} | ACRE: R$ {acre:.2f}</p>
+                    <h2 style="text-align:right">TOTAL: R$ {total:.2f}</h2>
+                    <br><br><p style="text-align:center">________________________<br>Assinatura</p>
+                </div>
+                """, unsafe_allow_html=True)
 
-        if st.session_state.get('v_ready'):
-            c, p, v = st.session_state.v_cli, st.session_state.v_pro, st.session_state.v_vals
-            sub = p['p_venda'] * v['q']
-            total = sub - v['d'] + v['a']
-            
-            # Layout Neutro JMQJ
-            st.markdown(f"""
-            <div style="border: 2px solid #000; padding: 20px; font-family: monospace; background: white; color: black;">
-                <h2 style='text-align:center;'>JMQJ Sistemas - Pedido</h2>
-                <hr>
-                <p><b>EMPRESA:</b> {emp.get('nome', 'JMQJ')}</p>
-                <p><b>CLIENTE:</b> {c['NOM']} | End: {c.get('RUA', '')}</p>
-                <hr>
-                <p>{p['descricao']} | {v['q']} {p.get('unidade')} x {p['p_venda']} = R$ {sub:.2f}</p>
-                <p style="text-align:right">DESC: R$ {v['d']:.2f} | ACRE: R$ {v['a']:.2f}</p>
-                <h3 style="text-align:right">TOTAL: R$ {total:.2f}</h3>
-            </div>
-            """, unsafe_allow_html=True)
-
-# --- MODULO AJUSTES ---
+# --- AJUSTES ---
 elif menu == "⚙️ Ajustes":
-    st.header("⚙️ Configurações do Sistema")
-    with st.form("ajustes"):
-        n = st.text_input("Nome da sua Empresa", value=emp.get('nome',''))
-        cn = st.text_input("CNPJ", value=emp.get('cnpj',''))
-        tel = st.text_input("Telefone", value=emp.get('tel',''))
+    st.header("⚙️ Configurações da sua Empresa")
+    with st.form("f_conf"):
+        nome_e = st.text_input("Nome da sua Empresa", value=emp.get('nome',''))
+        cnpj_e = st.text_input("CNPJ", value=emp.get('cnpj',''))
+        tel_e = st.text_input("Telefone de Contato", value=emp.get('tel',''))
         logo = st.file_uploader("Sua Logo (PNG)", type=["png"])
-        if st.form_submit_button("💾 FIXAR CONFIGURAÇÃO"):
+        if st.form_submit_button("💾 FIXAR CONFIGURAÇÕES"):
             l64 = emp.get('logo_base64', '')
             if logo: l64 = f"data:image/png;base64,{base64.b64encode(logo.read()).decode('utf-8')}"
             supabase.table("config").upsert({
-                "id": 1, "nome": n, "cnpj": cn, "tel": tel, "logo_base64": l64
+                "id": 1, "nome": nome_e, "cnpj": cnpj_e, "tel": tel_e, "logo_base64": l64
             }).execute()
-            st.success("Configuração salva!")
-            st.rerun()
-    
+            st.success("Configuração Fixada!"); st.rerun()
     st.divider()
-    if st.button("🔥 ZERAR TUDO (RESET TOTAL)"):
+    if st.button("🔥 ZERAR TUDO (RESET)"):
         supabase.table("produtos").delete().neq("id", -1).execute()
         supabase.table("Clientes").delete().neq("id", -1).execute()
         st.rerun()
 
-elif menu == "📊 Dashboard":
-    st.header("Resumo Operacional")
-    c1, c2 = st.columns(2)
-    c1.metric("Clientes", len(df_c))
-    c2.metric("Produtos", len(df_p))
+elif menu == "📊 Painel":
+    st.metric("Clientes", len(df_c))
+    st.metric("Produtos", len(df_p))
