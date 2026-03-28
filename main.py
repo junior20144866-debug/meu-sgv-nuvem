@@ -3,14 +3,14 @@ from supabase import create_client
 import pandas as pd
 import time
 import base64
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # --- 1. CONEXÃO E CONFIGURAÇÃO ---
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
 CHAVE_SUPABASE = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp2c21pYXV2dmR5ZHhzaG56cmxyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzI3NTMzNjAsImV4cCI6MjA4ODMyOTM2MH0.Cu_AqQWMO7ptoYgWEU7bpFNEnzPLq7vL8SNDHPIe_-o"
 supabase = create_client(URL_SUPABASE, CHAVE_SUPABASE)
 
-st.set_page_config(page_title="JMQJ SGV v87", layout="wide", page_icon="🎯")
+st.set_page_config(page_title="JMQJ SGV v88", layout="wide", page_icon="🎯")
 
 # --- 2. MOTOR DE SEGURANÇA (BLOQUEIO INICIAL) ---
 if 'auth' not in st.session_state: st.session_state.auth = False
@@ -18,9 +18,9 @@ if 'auth' not in st.session_state: st.session_state.auth = False
 def login_screen():
     _, col, _ = st.columns([1,1,1])
     with col:
-        st.markdown("<h2 style='text-align: center;'>🔐 Acesso Restrito</h2>", unsafe_allow_html=True)
+        st.markdown("<h2 style='text-align: center;'>🔐 Acesso JMQJ SGV</h2>", unsafe_allow_html=True)
         senha = st.text_input("Senha Mestra", type="password")
-        if st.button("ENTRAR NO SISTEMA", use_container_width=True):
+        if st.button("LIGAR SISTEMA", use_container_width=True):
             if senha == "Naksu@6026": 
                 st.session_state.auth = True
                 st.rerun()
@@ -30,9 +30,8 @@ if not st.session_state.auth:
     login_screen()
     st.stop()
 
-# --- 3. MOTOR DE DADOS (CACHE DE ESTADO) ---
-@st.cache_data(ttl=60) # Atualiza a cada 1 min ou no clique de salvar
-def buscar_dados():
+# --- 3. MOTOR DE DADOS (FORÇADO E PERSISTENTE) ---
+def carregar_universo_manual():
     try:
         e = supabase.table("config").select("*").eq("id", 1).execute().data
         p = supabase.table("produtos").select("*").order("descricao").execute().data
@@ -41,108 +40,176 @@ def buscar_dados():
     except:
         return {}, pd.DataFrame(), pd.DataFrame()
 
-emp, df_p, df_c = buscar_dados()
+emp, df_p, df_c = carregar_universo_manual()
 
-# --- 4. INTERFACE OPERACIONAL ---
+# --- 4. INTERFACE E NAVEGAÇÃO ---
 with st.sidebar:
     if emp.get('logo_base64'): st.image(emp['logo_base64'], use_container_width=True)
     st.title(emp.get('nome', 'JMQJ SGV'))
-    st.caption(f"Unidade: {emp.get('uf', 'CE')}")
-    menu = st.radio("MÓDULOS", ["📊 Painel", "💰 Vendas & Pedidos", "📦 Estoque", "👥 Clientes", "📂 Importação", "⚙️ Ajustes"])
+    st.write(f"CNPJ: {emp.get('cnpj', '')}")
+    st.write(f"Contatos: {emp.get('tel', '')} / {emp.get('email', '')}")
+    st.write(f"Endereço: {emp.get('end', '')}, {emp.get('cidade', '')}/{emp.get('uf', '')}")
+    st.write("---")
+    menu = st.radio("MÓDULOS", ["📊 Painel", "🧾 Emissão de Pedido", "📦 Produtos & Estoque", "👥 Base de Clientes", "⚙️ Ajustes da Empresa"])
 
 # --- MÓDULO: PAINEL ---
 if menu == "📊 Painel":
-    st.header("Indicadores de Gestão")
+    st.header("Painel Operacional")
     c1, c2, c3 = st.columns(3)
-    c1.metric("Produtos", len(df_p))
-    c2.metric("Clientes", len(df_c))
-    c3.metric("Status", "Online")
+    c1.metric("CLIENTES CADASTRADOS", len(df_c))
+    c2.metric("ITENS NO ESTOQUE", len(df_p))
+    c3.metric("STATUS", "Online - Manual")
 
 # --- MÓDULO: VENDAS (MOTOR DE IMPRESSÃO A5) ---
-elif menu == "💰 Vendas & Pedidos":
-    st.header("Emissão de Pedido")
-    col1, col2 = st.columns([1, 1.3])
-    with col1:
-        with st.form("venda"):
-            sel_cli = st.selectbox("Cliente", df_c['NOM'].tolist() if not df_c.empty else ["Vazio"])
-            sel_prod = st.selectbox("Item", df_p['descricao'].tolist() if not df_p.empty else ["Vazio"])
-            qtd = st.number_input("Qtd", min_value=1)
-            vias = st.radio("Vias de Impressão", ["1 via (Metade A4)", "2 vias (Folha Inteira)"])
-            if st.form_submit_button("GERAR DOCUMENTO"):
-                st.session_state.venda_ok = True
-    
-    if st.session_state.get('venda_ok'):
-        with col2:
-            st.info("Visualização para Impressão")
-            corpo_pedido = f"""
-            <div style="border:1px solid #000; padding:20px; font-family:monospace; margin-bottom:10px;">
-                <h3 style='text-align:center;'>{emp.get('nome')}</h3>
-                <p>CNPJ: {emp.get('cnpj')} | {emp.get('end')}</p>
-                <hr>
-                <p><b>CLIENTE:</b> {sel_cli}</p>
-                <p><b>ITEM:</b> {sel_prod} | QTD: {qtd}</p>
-                <br><br><br>
-                <p style='text-align:center;'>_________________________________<br>Assinatura</p>
-            </div>
-            """
-            st.markdown(corpo_pedido, unsafe_allow_html=True)
-            if vias == "2 vias (Folha Inteira)":
-                st.markdown(corpo_pedido, unsafe_allow_html=True)
+elif menu == "🧾 Emissão de Pedido":
+    st.header("Novo Pedido de Venda")
+    if df_p.empty or df_c.empty:
+        st.warning("⚠️ Atenção: Cadastre Clientes e Produtos antes de emitir pedidos.")
+    else:
+        col1, col2 = st.columns([1, 1.4])
+        with col1:
+            with st.form("venda"):
+                # Seletor de Cliente
+                sel_cli = st.selectbox("Selecione o Cliente", df_c['NOM'].tolist())
+                # Seletor de Produto
+                prod_formatado = [f"{p['descricao']} | R$ {p['p_venda']:.2f}" for p in df_p.to_dict('records')]
+                sel_prod = st.selectbox("Selecione o Produto", prod_formatado)
+                
+                qtd = st.number_input("Quantidade", min_value=1, value=1)
+                desconto = st.number_input("Desconto (R$)", min_value=0.0, value=0.0, step=1.0)
+                acrescimo = st.number_input("Acréscimo (R$)", min_value=0.0, value=0.0, step=1.0)
+                
+                if st.form_submit_button("📄 GERAR PRÉVIA DO PEDIDO"):
+                    st.session_state.pedido_ok = True
+                    st.session_state.cli_select = df_c[df_c['NOM'] == sel_cli].to_dict('records')[0]
+                    st.session_state.prod_select = df_p[df_p['descricao'] == sel_prod.split(' | ')[0]].to_dict('records')[0]
+                    st.session_state.qtd = qtd
+                    st.session_state.desconto = desconto
+                    st.session_state.acrescimo = acrescimo
+
+        if st.session_state.get('pedido_ok'):
+            with col2:
+                # Recupera dados da sessão
+                c = st.session_state.cli_select
+                p = st.session_state.prod_select
+                q = st.session_state.qtd
+                desc = st.session_state.desconto
+                acre = st.session_state.acrescimo
+                total_itens = p['p_venda'] * q
+                total_pedido = total_itens - desc + acre
+                
+                # Motor de Layout para Impressão (Figura solicitada)
+                html_pedido = f"""
+                <div style="border:1px solid #000; padding:30px; font-family:monospace; margin-bottom:10px; line-height: 1.3;">
+                    <table style="width:100%"><tr>
+                    <td style="width:30%"><img src="{emp.get('logo_base64', '')}" width="120"></td>
+                    <td style="text-align:center"><b>{emp.get('nome', '')}</b><br>CNPJ: {emp.get('cnpj', '')}<br>{emp.get('end', '')}<br>{emp.get('cidade', '')}/{emp.get('uf', '')}<br>WhatsApp: {emp.get('tel', '')}</td>
+                    <td style="text-align:right; border:1px solid #000; padding:5px">PEDIDO: {datetime.now().strftime('%M%S')}<br>{datetime.now().strftime('%d/%m/%Y')}</td>
+                    </tr></table>
+                    <hr>
+                    <p><b>CLIENTE:</b> {c['NOM']}</p>
+                    <p>Endereço: {c['RUA']}, {c['BAI']}, {c['CIDADE']}/{c['UF']} | Tel: {c['TEL']}</p>
+                    <table style="width:100%; border-collapse: collapse; margin-top: 20px;">
+                    <tr style="background-color: #f2f2f2;"><th>DESCRIÇÃO</th><th>QTD</th><th>UN</th><th>PREÇO</th><th>TOTAL</th></tr>
+                    <tr><td>{p['descricao']}</td><td style="text-align:center">{q}</td><td style="text-align:center">{p.get('unidade','UN')}</td><td style="text-align:right">R$ {p['p_venda']:.2f}</td><td style="text-align:right">R$ {total_itens:.2f}</td></tr>
+                    </table>
+                    <hr style="margin-top: 30px;">
+                    <table style="width:100%"><tr>
+                    <td style="width:70%; text-align:right">Total de Itens:</td><td style="text-align:right">R$ {total_itens:.2f}</td>
+                    </tr><tr>
+                    <td style="text-align:right; color: red;">(-) Desconto:</td><td style="text-align:right; color: red;">R$ {desc:.2f}</td>
+                    </tr><tr>
+                    <td style="text-align:right; color: green;">(+) Acréscimo:</td><td style="text-align:right; color: green;">R$ {acre:.2f}</td>
+                    </tr><tr style="font-size: 1.2rem; font-weight: bold;">
+                    <td style="text-align:right">TOTAL DO PEDIDO:</td><td style="text-align:right">R$ {total_pedido:.2f}</td>
+                    </tr></table>
+                    <br><br><br>
+                    <div style="text-align:center">_________________________________<br>Assinatura do Recebedor</div>
+                </div>"""
+                st.markdown(html_pedido, unsafe_allow_html=True)
+                st.write("Dica: Use Ctrl+P para imprimir esta página em modo A5 (Meia A4).")
+
+# --- MÓDULO: PRODUTOS (INCLUSÃO MANUAL) ---
+elif menu == "📦 Produtos & Estoque":
+    st.header("Gestão de Produtos")
+    tab_list, tab_new = st.tabs(["📋 Lista de Produtos", "➕ Novo Cadastro Manual"])
+    with tab_list:
+        st.dataframe(df_p, use_container_width=True, hide_index=True)
+    with tab_new:
+        with st.form("p_manual", clear_on_submit=True):
+            st.subheader("Cadastrar Produto")
+            d = st.text_input("Descrição do Produto")
+            c1, c2, c3 = st.columns(3)
+            u = c1.text_input("Unidade (ex: UN, PC, KG)", value="UN")
+            e = c2.number_input("Estoque Inicial", min_value=0, value=0)
+            v = c3.number_input("Valor de Venda (R$)", min_value=0.0, value=0.0, step=1.0)
+            if st.form_submit_button("💾 SALVAR NO BANCO"):
+                supabase.table("produtos").insert({"descricao": d, "unidade": u, "estoque": e, "p_venda": v}).execute()
+                st.success("Produto cravado com sucesso!"); st.rerun()
 
 # --- MÓDULO: CLIENTES (INCLUSÃO MANUAL COMPLETA) ---
-elif menu == "👥 Clientes":
+elif menu == "👥 Base de Clientes":
     st.header("Gestão de Clientes")
-    tab1, tab2 = st.tabs(["📋 Lista", "➕ Novo Cadastro"])
-    with tab1:
+    tab_list, tab_new = st.tabs(["📋 Relação de Clientes", "➕ Novo Cadastro Manual"])
+    with tab_list:
         st.dataframe(df_c, use_container_width=True, hide_index=True)
-    with tab2:
-        with st.form("cli_manual"):
+    with tab_new:
+        with st.form("c_manual", clear_on_submit=True):
+            st.subheader("Cadastrar Novo Cliente")
             c1, c2 = st.columns(2)
-            nome = c1.text_input("Nome/Razão Social (NOM)")
-            doc = c2.text_input("CNPJ/CPF")
-            rua = st.text_input("Rua")
-            bairro = c1.text_input("Bairro")
+            n = c1.text_input("Nome Completo / Razão Social (NOM)")
+            doc = c2.text_input("CPF / CNPJ")
+            rua = st.text_input("Rua (Logradouro)")
+            c1, c2, c3 = st.columns(3)
+            b = c1.text_input("Bairro")
             cep = c2.text_input("CEP")
-            email = st.text_input("E-mail")
-            if st.form_submit_button("💾 SALVAR CLIENTE"):
-                supabase.table("Clientes").insert({"NOM": nome, "CPF": doc, "RUA": rua, "BAI": bairro, "CEP": cep, "EMAIL": email}).execute()
-                st.cache_data.clear(); st.rerun()
+            cid = c3.text_input("Cidade", value="Caucaia")
+            uf = c1.selectbox("UF", ["CE", "RN", "PB", "PE"], index=0)
+            c2, c3 = st.columns(2)
+            tel = c2.text_input("Telefone / WhatsApp")
+            em = c3.text_input("E-mail")
+            if st.form_submit_button("💾 SALVAR NO BANCO"):
+                supabase.table("Clientes").insert({
+                    "NOM": n, "CPF": doc, "RUA": rua, "BAI": b, "CEP": cep, 
+                    "CIDADE": cid, "UF": uf, "TEL": tel, "EMAIL": em
+                }).execute()
+                st.success("Cliente fixado com sucesso!"); st.rerun()
 
-# --- MÓDULO: IMPORTAÇÃO MASSIVA INTELIGENTE ---
-elif menu == "📂 Importação":
-    st.header("Importação Massiva (DNA Bússola)")
-    arquivo = st.file_uploader("Suba o Excel (.xlsx)", type=["xlsx"])
-    if arquivo and st.button("🚀 PROCESSAR"):
-        df_in = pd.read_excel(arquivo)
-        # TRADUTOR: Mapeia colunas do Excel para o Banco
-        df_in.columns = [c.upper().strip() for c in df_in.columns]
-        for r in df_in.to_dict('records'):
-            try:
-                # Lógica para produtos ou clientes baseada no cabeçalho
-                if 'NOM' in df_in.columns:
-                    supabase.table("Clientes").insert({"NOM": str(r.get('NOM')), "RUA": str(r.get('RUA','')), "BAI": str(r.get('BAI',''))}).execute()
-                else:
-                    supabase.table("produtos").insert({"descricao": str(r.get('DESCRICAO')), "p_venda": float(r.get('P_VENDA',0))}).execute()
-            except: pass
-        st.success("Importação concluída!")
-        st.cache_data.clear(); time.sleep(1); st.rerun()
-
-# --- MÓDULO: AJUSTES (CONTROLE TOTAL) ---
-elif menu == "⚙️ Ajustes":
-    st.header("Configurações da Empresa")
+# --- MÓDULO: AJUSTES DA EMPRESA (FIXAÇÃO DA DERLYANA) ---
+elif menu == "⚙️ Ajustes da Empresa":
+    st.header("Identidade da Agroindústria")
     with st.form("empresa"):
-        n = st.text_input("Nome", value=emp.get('nome',''))
+        st.subheader("Dados Cadastrais (Derlyana)")
+        nome = st.text_input("Nome da Empresa", value=emp.get('nome',''))
         cnpj = st.text_input("CNPJ", value=emp.get('cnpj',''))
-        uf = st.selectbox("UF", ["CE", "RN", "PB", "PE"], index=0)
-        logo = st.file_uploader("Logo", type=["png"])
-        if st.form_submit_button("FIXAR DADOS"):
+        logo = st.file_uploader("Logomarca (PNG)", type=["png"])
+        st.subheader("Endereço e Contato")
+        rua = st.text_input("Rua", value=emp.get('end',''))
+        c1, c2, c3 = st.columns(3)
+        b = c1.text_input("Bairro", value=emp.get('bai',''))
+        cep = c2.text_input("CEP", value=emp.get('cep',''))
+        cid = c3.text_input("Cidade", value=emp.get('cidade',''))
+        uf = c1.selectbox("UF", ["CE", "RN", "PB", "PE"], index=0)
+        c2, c3 = st.columns(2)
+        tel = c2.text_input("Telefone / Whats App", value=emp.get('tel',''))
+        em = c3.text_input("E-mail", value=emp.get('email',''))
+        
+        if st.form_submit_button("💾 FIXAR DADOS DA EMPRESA"):
+            # Converte logo para base64 se houver upload
             l64 = emp.get('logo_base64', '')
-            if logo: l64 = f"data:image/png;base64,{base64.b64encode(logo.read()).decode('utf-8')}"
-            supabase.table("config").upsert({"id": 1, "nome": n, "cnpj": cnpj, "uf": uf, "logo_base64": l64}).execute()
-            st.cache_data.clear(); st.rerun()
+            if logo:
+                l64 = f"data:image/png;base64,{base64.b64encode(logo.read()).decode('utf-8')}"
+            # Upsert cravado no id: 1
+            payload = {
+                "id": 1, "nome": nome, "cnpj": cnpj, "logo_base64": l64, "end": rua,
+                "bai": b, "cep": cep, "cidade": cid, "uf": uf, "tel": tel, "email": em
+            }
+            supabase.table("config").upsert(payload).execute()
+            st.success("Dados da empresa gravados com sucesso!"); st.rerun()
     
     st.divider()
-    if st.button("🔥 RESET TOTAL DO BANCO"):
+    if st.button("🔥 RESET TOTAL DO SISTEMA (Cuidado!)"):
         supabase.table("produtos").delete().neq("id", -1).execute()
         supabase.table("Clientes").delete().neq("id", -1).execute()
-        st.cache_data.clear(); st.rerun()
+        supabase.table("config").delete().eq("id", 1).execute()
+        st.rerun()
