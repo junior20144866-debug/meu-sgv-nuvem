@@ -27,36 +27,26 @@ if not st.session_state.auth:
             else: st.error("Chave incorreta.")
     st.stop()
 
-# --- 3. MOTOR DE DADOS (MAPEAMENTO INTELIGENTE) ---
-def carregar_universo():
+# --- 3. MOTOR DE DADOS ---
+def carregar_dados():
     try:
         e = supabase.table("config").select("*").execute().data
         p = supabase.table("produtos").select("*").execute().data
         c = supabase.table("Clientes").select("*").execute().data
-        
-        df_p = pd.DataFrame(p) if p else pd.DataFrame()
-        df_c = pd.DataFrame(c) if c else pd.DataFrame()
-        
-        # Tradutor: Transforma nomes do banco para o padrão do código
-        if not df_p.empty:
-            df_p = df_p.rename(columns={'nome': 'descricao', 'preco': 'p_venda'})
-        if not df_c.empty:
-            df_c = df_c.rename(columns={'nome': 'NOM'})
-            
-        return (e[0] if e else {}), df_p, df_c
+        return (e[0] if e else {}), pd.DataFrame(p), pd.DataFrame(c)
     except Exception as err:
         st.error(f"Erro de Sincronia: {err}")
         return {}, pd.DataFrame(), pd.DataFrame()
 
-emp, df_p, df_c = carregar_universo()
+emp, df_p, df_c = carregar_dados()
 
 # --- 4. INTERFACE ---
 with st.sidebar:
     st.title("JMQJ Sistemas")
     if emp.get('logo_base64'): st.image(emp['logo_base64'], use_container_width=True)
-    st.write(f"**Gestão:** {emp.get('nome', 'Padrão')}")
+    st.write(f"**Gestão:** {emp.get('nome', 'JMQJ Sistemas')}")
     st.divider()
-    menu = st.radio("MENS", ["📊 Painel", "🧾 Novo Pedido", "📦 Produtos", "👥 Clientes", "⚙️ Ajustes"])
+    menu = st.radio("NAVEGAÇÃO", ["📊 Painel", "🧾 Emitir Pedido", "📦 Produtos", "👥 Clientes", "⚙️ Ajustes"])
 
 # --- MODULO: CLIENTES ---
 if menu == "👥 Clientes":
@@ -69,9 +59,9 @@ if menu == "👥 Clientes":
         end = st.text_input("Endereço")
         if st.form_submit_button("💾 SALVAR CLIENTE"):
             if n:
-                # O sistema agora usa 'nome' (minúsculo) como está na sua imagem do banco
+                # Usando 'nome' minúsculo conforme sua tabela do Supabase
                 supabase.table("Clientes").insert({"nome": n, "CPF": doc, "TEL": t, "RUA": end}).execute()
-                st.success("Cliente gravado!"); time.sleep(1); st.rerun()
+                st.success("✅ Cliente gravado!"); time.sleep(1); st.rerun()
             else: st.warning("Nome é obrigatório.")
     if not df_c.empty: st.dataframe(df_c, use_container_width=True, hide_index=True)
 
@@ -85,36 +75,47 @@ elif menu == "📦 Produtos":
         p = c2.number_input("Preço de Venda", value=0.0)
         if st.form_submit_button("💾 SALVAR PRODUTO"):
             if d:
-                # O sistema agora usa 'nome' e 'preco' como está no seu banco
+                # Usando 'nome' e 'preco' minúsculos conforme sua tabela
                 supabase.table("produtos").insert({"nome": d, "unidade": u, "preco": p}).execute()
-                st.success("Produto gravado!"); time.sleep(1); st.rerun()
+                st.success("✅ Produto gravado!"); time.sleep(1); st.rerun()
 
 # --- MODULO: PEDIDO ---
-elif menu == "🧾 Novo Pedido":
-    st.header("🧾 Emissão de Pedido")
+elif menu == "🧾 Emitir Pedido":
+    st.header("🧾 Novo Pedido")
     if df_c.empty or df_p.empty:
         st.warning("Cadastre dados antes de emitir vendas.")
     else:
         with st.form("venda"):
-            cli = st.selectbox("Cliente", df_c['NOM'].tolist())
-            prod = st.selectbox("Produto", df_p['descricao'].tolist())
-            q = st.number_input("Qtd", min_value=1)
-            if st.form_submit_button("GERAR PRÉVIA"):
-                # Layout profissional Meia A4
-                st.info(f"Gerando pedido para {cli}...")
+            cli = st.selectbox("Cliente", df_c['nome'].tolist())
+            prod = st.selectbox("Produto", df_p['nome'].tolist())
+            q = st.number_input("Quantidade", min_value=1, value=1)
+            if st.form_submit_button("GERAR PEDIDO"):
+                # Layout Meia Folha A4
+                p_data = df_p[df_p['nome'] == prod].iloc[0]
+                total = p_data['preco'] * q
+                st.markdown(f"""
+                <div style="border: 2px solid #000; padding: 20px; font-family: monospace; background: white; color: black;">
+                    <h3 style="text-align:center;">{emp.get('nome', 'JMQJ SISTEMAS')}</h3>
+                    <hr>
+                    <p><b>CLIENTE:</b> {cli}</p>
+                    <p><b>ITEM:</b> {prod} | {q} x R$ {p_data['preco']:.2f}</p>
+                    <h2 style="text-align:right;">TOTAL: R$ {total:.2f}</h2>
+                </div>
+                """, unsafe_allow_html=True)
 
 # --- MODULO: AJUSTES ---
 elif menu == "⚙️ Ajustes":
     st.header("⚙️ Configurações")
     with st.form("f_conf"):
-        nome_e = st.text_input("Nome da Empresa", value=emp.get('nome', ''))
+        nome_e = st.text_input("Nome da sua Empresa", value=emp.get('nome', ''))
         tel_e = st.text_input("Telefone", value=emp.get('tel', ''))
-        logo = st.file_uploader("Logo PNG", type=["png"])
+        logo = st.file_uploader("Sua Logo (PNG)", type=["png"])
         if st.form_submit_button("💾 FIXAR DADOS"):
             l64 = emp.get('logo_base64', '')
             if logo: l64 = f"data:image/png;base64,{base64.b64encode(logo.read()).decode('utf-8')}"
             supabase.table("config").upsert({"id": 1, "nome": nome_e, "tel": tel_e, "logo_base64": l64}).execute()
             st.success("Configuração salva!"); st.rerun()
+    
     st.divider()
     if st.button("🔥 RESET TOTAL"):
         supabase.table("produtos").delete().neq("id", -1).execute()
@@ -122,5 +123,7 @@ elif menu == "⚙️ Ajustes":
         st.rerun()
 
 elif menu == "📊 Painel":
-    st.metric("Clientes Ativos", len(df_c))
-    st.metric("Itens Cadastrados", len(df_p))
+    st.header("📊 Resumo Operacional")
+    c1, c2 = st.columns(2)
+    c1.metric("Clientes Ativos", len(df_c))
+    c2.metric("Itens Cadastrados", len(df_p))
