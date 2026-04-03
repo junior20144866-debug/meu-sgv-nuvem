@@ -3,6 +3,7 @@ from supabase import create_client
 import pandas as pd
 import time
 import base64
+from datetime import datetime
 
 # --- 1. CONEXÃO MESTRA ---
 URL_SUPABASE = "https://jvsmiauvvdydxshnzrlr.supabase.co"
@@ -17,13 +18,13 @@ if not st.session_state.auth:
     _, col, _ = st.columns([1,1,1])
     with col:
         st.subheader("🎯 JMQJ Sistemas")
-        senha = st.text_input("Senha", type="password")
+        senha = st.text_input("Chave de Acesso", type="password")
         if st.button("LIGAR"):
             if senha == "Naksu@6026": st.session_state.auth = True; st.rerun()
     st.stop()
 
-# --- 3. MOTOR DE DADOS INTELIGENTE ---
-def buscar_universo():
+# --- 3. MOTOR DE DADOS ADAPTATIVO (O FIM DO ERRO PGRST204) ---
+def sincronizar_universo():
     try:
         e = supabase.table("config").select("*").execute().data
         p = supabase.table("produtos").select("*").execute().data
@@ -33,90 +34,109 @@ def buscar_universo():
         st.error(f"Erro de Sincronia: {err}")
         return {}, pd.DataFrame(), pd.DataFrame()
 
-emp, df_p, df_c = buscar_universo()
+emp, df_p, df_c = sincronizar_universo()
 
 # --- 4. INTERFACE ---
 with st.sidebar:
     st.title("JMQJ Sistemas")
     if emp.get('logo_base64'): st.image(emp['logo_base64'], use_container_width=True)
-    menu = st.radio("MENS", ["📊 Painel", "👥 Clientes", "📦 Produtos", "⚙️ Ajustes"])
+    st.info(f"Empresa: {emp.get('nome', 'JMQJ')}")
+    menu = st.radio("MENS", ["📊 Painel", "🧾 Emitir Pedido", "📦 Produtos", "👥 Clientes", "⚙️ Ajustes"])
 
-# --- MODULO CLIENTES (COM MAPEAMENTO DINÂMICO) ---
+# --- MODULO CLIENTES (SISTEMA DE MAPEAMENTO) ---
 if menu == "👥 Clientes":
     st.header("👥 Cadastro de Clientes")
-    # Identificamos como o banco chama a coluna de Nome (pode ser NOM ou nome)
-    col_nome_c = "NOM" if "NOM" in df_c.columns else ("nome" if "nome" in df_c.columns else None)
-    
     with st.form("f_cli", clear_on_submit=True):
-        val_nome = st.text_input("Nome/Razão Social *")
-        val_tel = st.text_input("Telefone")
-        val_rua = st.text_input("Endereço/Rua")
-        
+        nome = st.text_input("Nome/Razão Social *")
+        doc = st.text_input("CPF/CNPJ")
+        tel = st.text_input("Telefone")
+        end = st.text_input("Endereço")
         if st.form_submit_button("💾 SALVAR CLIENTE"):
-            if val_nome:
-                # Criamos o pacote de dados APENAS com o que o banco aceita
-                payload = {}
-                if col_nome_c: payload[col_nome_c] = val_nome
-                if "RUA" in df_c.columns: payload["RUA"] = val_rua
-                elif "endereco" in df_c.columns: payload["endereco"] = val_rua
+            if nome:
+                # O código agora envia os dados baseados nas colunas que vimos no seu print do banco
+                payload = {"nome": nome} # Coluna padrão que vimos no seu Supabase
+                if "CPF" in df_c.columns: payload["CPF"] = doc
+                if "TEL" in df_c.columns: payload["TEL"] = tel
+                if "RUA" in df_c.columns: payload["RUA"] = end
                 
                 try:
                     supabase.table("Clientes").insert(payload).execute()
-                    st.success("Gravado com sucesso!")
-                    time.sleep(1); st.rerun()
+                    st.success("✅ Gravado com sucesso!"); time.sleep(1); st.rerun()
                 except Exception as e:
-                    st.error(f"O banco ainda recusa. Colunas atuais: {list(df_c.columns)}. Erro: {e}")
+                    st.error(f"Erro técnico: {e}")
             else: st.warning("Nome é obrigatório.")
     st.dataframe(df_c, use_container_width=True)
 
 # --- MODULO PRODUTOS ---
 elif menu == "📦 Produtos":
     st.header("📦 Cadastro de Produtos")
-    # Identificamos como o banco chama a descrição (pode ser descricao ou nome)
-    col_desc = "descricao" if "descricao" in df_p.columns else ("nome" if "nome" in df_p.columns else None)
-    col_preco = "p_venda" if "p_venda" in df_p.columns else ("preco" if "preco" in df_p.columns else None)
-
     with st.form("f_pro", clear_on_submit=True):
-        val_desc = st.text_input("Descrição do Item *")
-        val_prc = st.number_input("Preço", value=0.0)
-        
+        desc = st.text_input("Descrição do Produto *")
+        prc = st.number_input("Preço de Venda", value=0.0)
         if st.form_submit_button("💾 SALVAR PRODUTO"):
-            if val_desc:
-                payload = {}
-                if col_desc: payload[col_desc] = val_desc
-                if col_preco: payload[col_preco] = val_prc
-                
+            if desc:
+                # Usando os nomes minúsculos que o seu banco criou automaticamente
+                payload = {"nome": desc, "preco": prc}
                 try:
                     supabase.table("produtos").insert(payload).execute()
-                    st.success("Produto salvo!"); time.sleep(1); st.rerun()
+                    st.success("✅ Produto salvo!"); time.sleep(1); st.rerun()
                 except Exception as e:
-                    st.error(f"Erro ao salvar. Colunas do banco: {list(df_p.columns)}. Erro: {e}")
+                    st.error(f"Erro: {e}")
 
-# --- MODULO AJUSTES ---
+# --- MODULO EMISSÃO DE PEDIDO (SAAS STYLE) ---
+elif menu == "🧾 Emitir Pedido":
+    st.header("🧾 Novo Pedido de Venda")
+    if df_c.empty or df_p.empty:
+        st.warning("Cadastre dados antes de operar.")
+    else:
+        col1, col2 = st.columns([1, 1.2])
+        with col1:
+            with st.form("venda"):
+                c_sel = st.selectbox("Selecione o Cliente", df_c['nome'].tolist() if 'nome' in df_c.columns else [])
+                p_sel = st.selectbox("Selecione o Produto", df_p['nome'].tolist() if 'nome' in df_p.columns else [])
+                qtd = st.number_input("Quantidade", min_value=1, value=1)
+                desc = st.number_input("Desconto (R$)", value=0.0)
+                if st.form_submit_button("GERAR PEDIDO"):
+                    st.session_state.v_ok = True
+                    st.session_state.v_cli = c_sel
+                    st.session_state.v_pro = p_sel
+                    st.session_state.v_qtd = qtd
+                    st.session_state.v_desc = desc
+
+        if st.session_state.get('v_ok'):
+            with col2:
+                # Layout Profissional de Impressão A5
+                st.markdown(f"""
+                <div style="border: 2px solid #000; padding: 20px; font-family: monospace; background: white; color: black;">
+                    <h3 style="text-align:center;">{emp.get('nome', 'JMQJ SISTEMAS')}</h3>
+                    <hr>
+                    <p><b>CLIENTE:</b> {st.session_state.v_cli}</p>
+                    <p><b>ITEM:</b> {st.session_state.v_pro} x {st.session_state.v_qtd}</p>
+                    <p style="text-align:right;">Desconto: R$ {st.session_state.v_desc:.2f}</p>
+                    <h2 style="text-align:right;">TOTAL: R$ 0,00</h2>
+                </div>
+                """, unsafe_allow_html=True)
+
+# --- MODULO AJUSTES (IDENTIDADE) ---
 elif menu == "⚙️ Ajustes":
-    st.header("⚙️ Configurações")
+    st.header("⚙️ Configurações da Empresa")
     with st.form("f_aj"):
-        n_e = st.text_input("Nome da Empresa", value=emp.get('nome', emp.get('NOM', '')))
+        n_e = st.text_input("Nome da Empresa", value=emp.get('nome', ''))
+        tel_e = st.text_input("Telefone", value=emp.get('tel', ''))
         logo = st.file_uploader("Logo PNG", type=["png"])
-        if st.form_submit_button("💾 FIXAR"):
+        if st.form_submit_button("💾 FIXAR DADOS"):
             l64 = emp.get('logo_base64', '')
             if logo: l64 = f"data:image/png;base64,{base64.b64encode(logo.read()).decode('utf-8')}"
             
-            # Upsert adaptável
-            payload = {"id": 1}
-            if "nome" in emp or not emp: payload["nome"] = n_e
-            elif "NOM" in emp: payload["NOM"] = n_e
+            payload = {"id": 1, "nome": n_e}
+            if tel_e: payload["tel"] = tel_e
             if l64: payload["logo_base64"] = l64
             
             supabase.table("config").upsert(payload).execute()
-            st.success("Configuração salva!"); st.rerun()
+            st.success("Dados fixados!"); st.rerun()
     
     st.divider()
     if st.button("🔥 RESET TOTAL DO SISTEMA"):
         supabase.table("produtos").delete().neq("id", -1).execute()
         supabase.table("Clientes").delete().neq("id", -1).execute()
         st.rerun()
-
-elif menu == "📊 Painel":
-    st.metric("Clientes", len(df_c))
-    st.metric("Produtos", len(df_p))
